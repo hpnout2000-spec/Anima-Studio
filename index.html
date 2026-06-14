@@ -412,6 +412,7 @@
           <div class="editor-canvas-column">
             <div id="editor-canvas-wrapper" class="editor-canvas-wrapper">
               <img id="editor-source-img" src="" alt="Source image to edit">
+              <canvas id="editor-sketch-canvas"></canvas>
               <canvas id="editor-mask-canvas"></canvas>
               <div id="editor-brush-cursor" class="editor-brush-cursor"></div>
             </div>
@@ -447,7 +448,7 @@
               <label class="editor-settings-label">Brush Controls</label>
               <div class="editor-mode-toggle-group" style="margin-bottom: 12px;">
                 <button id="btn-editor-brush-draw" class="editor-toggle-btn active">Draw Mask</button>
-                <button id="btn-editor-brush-erase" class="editor-toggle-btn">Eraser</button>
+                <button id="btn-editor-brush-sketch" class="editor-toggle-btn">Sketch</button>
               </div>
               <div class="editor-slider-container">
                 <div class="editor-slider-header">
@@ -456,8 +457,30 @@
                 </div>
                 <input type="range" id="input-editor-brush-size" min="5" max="100" step="1" value="20" class="settings-slider-input">
               </div>
+
+              <div id="editor-color-palette" style="display: none; margin-top: 15px;">
+                <label class="editor-settings-label" style="margin-bottom: 8px;">Sketch Color</label>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                  <button class="color-swatch active" data-color="#ff0000" style="background: #ff0000;"></button>
+                  <button class="color-swatch" data-color="#00ff00" style="background: #00ff00;"></button>
+                  <button class="color-swatch" data-color="#0000ff" style="background: #0000ff;"></button>
+                  <button class="color-swatch" data-color="#ffff00" style="background: #ffff00;"></button>
+                  <button class="color-swatch" data-color="#ffffff" style="background: #ffffff;"></button>
+                  <button class="color-swatch" data-color="#000000" style="background: #000000;"></button>
+                  <input type="color" id="input-editor-sketch-color" value="#ff0000" style="border: none; width: 24px; height: 24px; cursor: pointer; padding: 0; background: transparent; border-radius: 4px; overflow: hidden;">
+                </div>
+                <div style="margin-top: 12px; display: flex; align-items: center; gap: 6px;">
+                  <input type="checkbox" id="input-editor-enhance-sketch" checked style="cursor: pointer;">
+                  <label for="input-editor-enhance-sketch" style="font-size: 12px; color: var(--text-color); cursor: pointer;">Auto-Enhance Sketch (Blur + Noise)</label>
+                </div>
+              </div>
+
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 12px; text-align: center;">
+                Right-Click (Hold) to Erase
+              </div>
+
               <button id="btn-editor-clear-mask" class="btn-secondary-action" style="margin-top: 10px; width: 100%; justify-content: center; font-size: 12px; padding: 10px;">
-                Clear Mask
+                Clear Active Layer
               </button>
             </div>
 
@@ -473,15 +496,6 @@
               <div class="editor-tip-text">
                 Higher values mean more significant changes. (For inpainting: 0.7-0.9 recommended; for img2img: 0.4-0.6 recommended).
               </div>
-            </div>
-
-            <!-- Add Noise Toggle -->
-            <div class="editor-settings-group" id="editor-add-noise-group" style="margin-top: 15px; display: flex; align-items: center; justify-content: space-between;">
-              <div style="display: flex; flex-direction: column;">
-                <label for="input-editor-add-noise" style="color: var(--text-color); font-size: 14px; font-weight: 500;">Add Latent Noise</label>
-                <span style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Replaces mask with pure noise</span>
-              </div>
-              <input type="checkbox" id="input-editor-add-noise" checked style="width: 18px; height: 18px; cursor: pointer;">
             </div>
 
             <div class="editor-actions-row">

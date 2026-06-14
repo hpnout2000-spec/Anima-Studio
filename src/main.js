@@ -25,7 +25,8 @@ let appState = {
   editorSourceUrl: null,
   editorOriginalBlob: null,
   editorMode: 'inpaint', // 'inpaint' or 'img2img'
-  brushMode: 'draw', // 'draw' or 'erase'
+  brushMode: 'draw', // 'draw' or 'sketch'
+  sketchColor: '#ff0000',
   brushSize: 20,
   denoise: 0.75,
   isDrawing: false,
@@ -1543,6 +1544,10 @@ function showLoaderForm() {
   document.getElementById('creation-form-container').classList.add('hidden');
   document.getElementById('improve-confirmation-container').classList.add('hidden');
   document.getElementById('art-preview-area').classList.add('hidden');
+  const editorContainer = document.getElementById('image-editor-container');
+  if (editorContainer) {
+    editorContainer.classList.add('hidden');
+  }
   document.getElementById('generation-loader').classList.remove('hidden');
 }
 
@@ -2251,6 +2256,11 @@ function enterEditorMode(imageUrl, promptText = '', tagsArray = []) {
     });
 
   showToast('Entered Editor Mode', 'info');
+
+  // Safeguard: ensure layout is settled after CSS transitions (e.g. removing .hidden)
+  setTimeout(() => {
+    if (appState.editorActive) resizeCanvasToMatchImage();
+  }, 400);
 }
 
 function exitEditorMode() {
@@ -2281,17 +2291,32 @@ function exitEditorMode() {
 function resizeCanvasToMatchImage() {
   const img = document.getElementById('editor-source-img');
   const canvas = document.getElementById('editor-mask-canvas');
+  const sketchCanvas = document.getElementById('editor-sketch-canvas');
   const wrapper = document.getElementById('editor-canvas-wrapper');
-  if (!img || !canvas || !wrapper) return;
+  const col = document.querySelector('.editor-canvas-column');
+  if (!img || !canvas || !sketchCanvas || !wrapper || !col) return;
 
-  const w = img.clientWidth;
-  const h = img.clientHeight;
+  const natW = img.naturalWidth;
+  const natH = img.naturalHeight;
+  if (!natW || !natH) return;
 
-  if (w > 0 && h > 0) {
-    wrapper.style.width = `${w}px`;
-    wrapper.style.height = `${h}px`;
+  const colStyles = window.getComputedStyle(col);
+  const availW = col.clientWidth - parseFloat(colStyles.paddingLeft) - parseFloat(colStyles.paddingRight);
+  const availH = col.clientHeight - parseFloat(colStyles.paddingTop) - parseFloat(colStyles.paddingBottom);
+
+  const ratio = Math.min(availW / natW, availH / natH);
+  
+  // Downscale or upscale to fit available area
+  const finalW = Math.round(natW * ratio);
+  const finalH = Math.round(natH * ratio);
+
+  if (finalW > 0 && finalH > 0) {
+    wrapper.style.width = `${finalW}px`;
+    wrapper.style.height = `${finalH}px`;
     canvas.style.width = '100%';
     canvas.style.height = '100%';
+    sketchCanvas.style.width = '100%';
+    sketchCanvas.style.height = '100%';
   }
 }
 
@@ -2314,7 +2339,7 @@ async function prepareEditorBlobs() {
     }
   }
   
-  // 1. Export source image to JPEG (3 channels)
+  // 1. Export source image to JPEG (3 channels) + sketch layer
   const srcBlob = await new Promise((resolve) => {
     const canvas = document.createElement('canvas');
     canvas.width = w;
@@ -2323,6 +2348,46 @@ async function prepareEditorBlobs() {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, w, h);
     ctx.drawImage(img, 0, 0, w, h);
+    
+    // Draw sketch layer over the source image if available
+    const sketchCanvas = document.getElementById('editor-sketch-canvas');
+    if (sketchCanvas) {
+      const enhanceInput = document.getElementById('input-editor-enhance-sketch');
+      const shouldEnhance = enhanceInput ? enhanceInput.checked : true;
+
+      if (shouldEnhance) {
+        // Create an offscreen canvas to process the sketch
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = w;
+        offCanvas.height = h;
+        const offCtx = offCanvas.getContext('2d');
+        
+        // 1. Draw sketch with Gaussian Blur
+        offCtx.filter = 'blur(6px)';
+        offCtx.drawImage(sketchCanvas, 0, 0, w, h);
+        offCtx.filter = 'none';
+        
+        // 2. Add digital noise only to the painted areas
+        offCtx.globalCompositeOperation = 'source-atop';
+        const imgData = offCtx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i + 3] > 0) { // If pixel is not fully transparent
+            const noise = (Math.random() - 0.5) * 60; // Random value between -30 and +30
+            data[i] = Math.min(255, Math.max(0, data[i] + noise));
+            data[i+1] = Math.min(255, Math.max(0, data[i+1] + noise));
+            data[i+2] = Math.min(255, Math.max(0, data[i+2] + noise));
+          }
+        }
+        offCtx.putImageData(imgData, 0, 0);
+        
+        // Draw the processed sketch onto the main image
+        ctx.drawImage(offCanvas, 0, 0, w, h);
+      } else {
+        ctx.drawImage(sketchCanvas, 0, 0, w, h);
+      }
+    }
+    
     canvas.toBlob(resolve, 'image/jpeg', 0.95);
   });
   
@@ -2373,9 +2438,20 @@ function initImageEditor() {
     setTimeout(() => {
       canvas.width = img.naturalWidth || 832;
       canvas.height = img.naturalHeight || 1216;
+      const sketchCanvas = document.getElementById('editor-sketch-canvas');
+      if (sketchCanvas) {
+        sketchCanvas.width = canvas.width;
+        sketchCanvas.height = canvas.height;
+      }
       resizeCanvasToMatchImage();
     }, 100);
   });
+  
+  // Disable context menu to allow right-click erasing
+  const wrapper = document.getElementById('editor-canvas-wrapper');
+  if (wrapper) {
+    wrapper.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
 
   // Track window resize to keep canvas aligned
   window.addEventListener('resize', () => {
@@ -2396,7 +2472,7 @@ function initImageEditor() {
 
   // Mouse / Touch drawing events
   function startDraw(e) {
-    if (appState.editorMode === 'img2img') return; // no drawing in global mode
+    if (appState.editorMode === 'img2img' && appState.brushMode !== 'sketch') return; // only sketch allowed in global mode
     
     // Prevent scrolling on touches
     if (e.cancelable) e.preventDefault();
@@ -2404,13 +2480,14 @@ function initImageEditor() {
     appState.isDrawing = true;
     const { x, y } = getCoordinates(e);
     
-    const ctx = canvas.getContext('2d');
+    const activeCanvas = appState.brushMode === 'sketch' ? document.getElementById('editor-sketch-canvas') : canvas;
+    const ctx = activeCanvas.getContext('2d');
     ctx.beginPath();
     ctx.moveTo(x, y);
   }
 
   function drawMove(e) {
-    if (appState.editorMode === 'img2img') {
+    if (appState.editorMode === 'img2img' && appState.brushMode !== 'sketch') {
       if (cursor) cursor.style.display = 'none';
       return;
     }
@@ -2435,7 +2512,8 @@ function initImageEditor() {
     // Prevent scrolling
     if (e.cancelable) e.preventDefault();
 
-    const ctx = canvas.getContext('2d');
+    const activeCanvas = appState.brushMode === 'sketch' ? document.getElementById('editor-sketch-canvas') : canvas;
+    const ctx = activeCanvas.getContext('2d');
     ctx.lineTo(x, y);
     
     // Scale brush size to natural canvas resolution
@@ -2443,12 +2521,18 @@ function initImageEditor() {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    if (appState.brushMode === 'draw') {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = 'rgba(0, 243, 255, 0.5)'; // Glowing neon cyan
-    } else {
+    const isErase = e.buttons === 2 || e.button === 2;
+
+    if (isErase) {
       ctx.globalCompositeOperation = 'destination-out';
       ctx.strokeStyle = 'rgba(0, 0, 0, 1.0)';
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      if (appState.brushMode === 'sketch') {
+        ctx.strokeStyle = appState.sketchColor;
+      } else {
+        ctx.strokeStyle = 'rgba(0, 243, 255, 1.0)'; // Glowing neon cyan
+      }
     }
 
     ctx.stroke();
@@ -2479,13 +2563,16 @@ function initImageEditor() {
   const brushControls = document.getElementById('editor-brush-controls');
 
   if (btnInpaint && btnImg2Img && brushControls) {
+    const btnBrushDraw = document.getElementById('btn-editor-brush-draw');
+    const btnBrushSketch = document.getElementById('btn-editor-brush-sketch');
+    const paletteGroup = document.getElementById('editor-color-palette');
+
     btnInpaint.addEventListener('click', () => {
       appState.editorMode = 'inpaint';
       btnInpaint.classList.add('active');
       btnImg2Img.classList.remove('active');
       brushControls.style.display = 'block';
-      const noiseGroup = document.getElementById('editor-add-noise-group');
-      if (noiseGroup) noiseGroup.style.display = 'flex';
+      if (btnBrushDraw) btnBrushDraw.style.display = ''; // Restore default display
       
       // Update denoise default for inpainting
       document.getElementById('input-editor-denoise').value = 0.75;
@@ -2500,9 +2587,16 @@ function initImageEditor() {
       appState.editorMode = 'img2img';
       btnImg2Img.classList.add('active');
       btnInpaint.classList.remove('active');
-      brushControls.style.display = 'none';
-      const noiseGroup = document.getElementById('editor-add-noise-group');
-      if (noiseGroup) noiseGroup.style.display = 'none';
+      brushControls.style.display = 'block'; // Keep brush controls visible
+      
+      // Force sketch mode for global edit
+      appState.brushMode = 'sketch';
+      if (btnBrushSketch) btnBrushSketch.classList.add('active');
+      if (btnBrushDraw) {
+        btnBrushDraw.classList.remove('active');
+        btnBrushDraw.style.display = 'none'; // Hide mask drawing
+      }
+      if (paletteGroup) paletteGroup.style.display = 'block'; // Show palette
       
       // Update denoise default for global img2img
       document.getElementById('input-editor-denoise').value = 0.55;
@@ -2511,21 +2605,52 @@ function initImageEditor() {
     });
   }
 
-  // Brush Mode drawing/erasing toggle
+  // Brush Mode drawing/sketch toggle
   const btnBrushDraw = document.getElementById('btn-editor-brush-draw');
-  const btnBrushErase = document.getElementById('btn-editor-brush-erase');
+  const btnBrushSketch = document.getElementById('btn-editor-brush-sketch');
+  const paletteGroup = document.getElementById('editor-color-palette');
 
-  if (btnBrushDraw && btnBrushErase) {
+  if (btnBrushDraw && btnBrushSketch) {
     btnBrushDraw.addEventListener('click', () => {
       appState.brushMode = 'draw';
       btnBrushDraw.classList.add('active');
-      btnBrushErase.classList.remove('active');
+      btnBrushSketch.classList.remove('active');
+      if (paletteGroup) paletteGroup.style.display = 'none';
     });
 
-    btnBrushErase.addEventListener('click', () => {
-      appState.brushMode = 'erase';
-      btnBrushErase.classList.add('active');
+    btnBrushSketch.addEventListener('click', () => {
+      appState.brushMode = 'sketch';
+      btnBrushSketch.classList.add('active');
       btnBrushDraw.classList.remove('active');
+      if (paletteGroup) paletteGroup.style.display = 'block';
+    });
+  }
+
+  // Color Palette setup
+  const swatches = document.querySelectorAll('.color-swatch');
+  const inputSketchColor = document.getElementById('input-editor-sketch-color');
+  
+  function updateSketchColor(color) {
+    appState.sketchColor = color;
+    swatches.forEach(s => s.classList.remove('active'));
+    swatches.forEach(s => {
+      if (s.dataset.color === color) s.classList.add('active');
+    });
+    if (inputSketchColor && inputSketchColor.value !== color) {
+      inputSketchColor.value = color;
+    }
+  }
+
+  swatches.forEach(swatch => {
+    swatch.addEventListener('click', (e) => {
+      const color = e.target.dataset.color;
+      updateSketchColor(color);
+    });
+  });
+
+  if (inputSketchColor) {
+    inputSketchColor.addEventListener('input', (e) => {
+      updateSketchColor(e.target.value);
     });
   }
 
@@ -2540,13 +2665,16 @@ function initImageEditor() {
     });
   }
 
-  // Clear mask button
+  // Clear active layer button
   const btnClearMask = document.getElementById('btn-editor-clear-mask');
   if (btnClearMask) {
     btnClearMask.addEventListener('click', () => {
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      showToast('Mask cleared', 'info');
+      const activeCanvas = appState.brushMode === 'sketch' ? document.getElementById('editor-sketch-canvas') : canvas;
+      if (activeCanvas) {
+        const ctx = activeCanvas.getContext('2d');
+        ctx.clearRect(0, 0, activeCanvas.width, activeCanvas.height);
+        showToast(appState.brushMode === 'sketch' ? 'Sketch cleared' : 'Mask cleared', 'info');
+      }
     });
   }
 
@@ -2600,8 +2728,7 @@ async function startImageEditGeneration() {
       sourceImageBlob: srcBlob,
       maskImageBlob: appState.editorMode === 'inpaint' ? maskBlob : null,
       denoise: appState.denoise,
-      mode: appState.editorMode,
-      addNoise: document.getElementById('input-editor-add-noise')?.checked ?? true
+      mode: appState.editorMode
     };
 
     const activeLoras = appState.loras.filter(l => l.enabled && l.name);

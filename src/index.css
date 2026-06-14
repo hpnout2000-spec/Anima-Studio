@@ -2042,14 +2042,28 @@ body, html {
   }
 }
 
+@keyframes fade-in-panel {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Content fades in after the panel has started its spring expansion.
+   No transform here — the parent panel's own transition owns all geometry motion.
+   A short delay + ease-out keeps content perfectly synchronized with the container. */
+.creation-content-wrapper:not(.hidden),
+.art-preview-wrapper:not(.hidden),
+.editor-content-wrapper:not(.hidden) {
+  animation: fade-in-panel 0.32s ease-out 0.12s both;
+}
+
 /* Global utility class to hide elements */
 .hidden {
   display: none !important;
 }
 
 /* Hide tabs during generation or when previewing the art */
-.main-panel.generating .workspace-tabs-row,
-.main-panel:has(#art-preview-area:not(.hidden)) .workspace-tabs-row {
+.main-panel.generating .mode-tabs-container,
+.main-panel:has(#art-preview-area:not(.hidden)) .mode-tabs-container {
   display: none !important;
 }
 
@@ -3100,4 +3114,27 @@ body, html {
 .album-workspace-body .gallery-item-card {
   aspect-ratio: 1 / 1;
   border-radius: 10px;
+}
+
+.color-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.2s, border-color 0.2s;
+  padding: 0;
+}
+
+.color-swatch:hover {
+  transform: scale(1.1);
+}
+
+.color-swatch.active {
+  border-color: var(--primary-color, #fff);
+  box-shadow: 0 0 0 2px var(--bg-primary, #000);
+}
+
+#editor-mask-canvas {
+  opacity: 0.5;
 }

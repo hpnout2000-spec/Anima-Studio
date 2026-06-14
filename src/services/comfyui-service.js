@@ -120,7 +120,7 @@ function buildAnimaWorkflow(prompt, negPrompt, settings, loras = []) {
 /**
  * Build the Anima Edit workflow (Img2Img / Inpaint with optional LLLite)
  */
-function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, maskFilename, denoise, mode, loras = [], addNoise = true) {
+function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, maskFilename, denoise, mode, loras = []) {
   const seed = Math.floor(Math.random() * 2 ** 32);
   const steps = settings.comfyui_steps ?? 30;
   const cfg = settings.comfyui_cfg ?? 4.5;
@@ -249,65 +249,31 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
 
   // Latent encoding setup
   if (mode === 'inpaint' && maskFilename) {
-    if (addNoise) {
-      workflow["13"] = {
-        "class_type": "VAEEncode",
-        "inputs": {
-          "pixels": ["10", 0],
-          "vae": ["3", 0]
-        }
-      };
-
-      workflow["14"] = {
-        "class_type": "SetLatentNoiseMask",
-        "inputs": {
-          "samples": ["13", 0],
-          "mask": ["12", 0]
-        }
-      };
-      
-      workflow["7"] = {
-        "class_type": "KSampler",
-        "inputs": {
-          "model": modelNode,
-          "positive": ["4", 0],
-          "negative": ["5", 0],
-          "latent_image": ["14", 0],
-          "seed": seed,
-          "steps": steps,
-          "cfg": cfg,
-          "sampler_name": sampler,
-          "scheduler": scheduler,
-          "denoise": denoise
-        }
-      };
-    } else {
-      workflow["13"] = {
-        "class_type": "VAEEncodeForInpaint",
-        "inputs": {
-          "pixels": ["10", 0],
-          "vae": ["3", 0],
-          "mask": ["12", 0],
-          "grow_mask_by": 6
-        }
-      };
-      
-      workflow["7"] = {
-        "class_type": "KSampler",
-        "inputs": {
-          "model": modelNode,
-          "positive": ["4", 0],
-          "negative": ["5", 0],
-          "latent_image": ["13", 0],
-          "seed": seed,
-          "steps": steps,
-          "cfg": cfg,
-          "sampler_name": sampler,
-          "scheduler": scheduler,
-          "denoise": denoise
-        }
-      };
-    }
+    workflow["13"] = {
+      "class_type": "VAEEncodeForInpaint",
+      "inputs": {
+        "pixels": ["10", 0],
+        "vae": ["3", 0],
+        "mask": ["12", 0],
+        "grow_mask_by": 6
+      }
+    };
+    
+    workflow["7"] = {
+      "class_type": "KSampler",
+      "inputs": {
+        "model": modelNode,
+        "positive": ["4", 0],
+        "negative": ["5", 0],
+        "latent_image": ["13", 0],
+        "seed": seed,
+        "steps": steps,
+        "cfg": cfg,
+        "sampler_name": sampler,
+        "scheduler": scheduler,
+        "denoise": denoise
+      }
+    };
   } else {
     // Global img2img
     workflow["11"] = {
@@ -462,8 +428,7 @@ export async function generateImageComfyUI(prompt, onProgress = () => {}, signal
         maskUploadName,
         editParams.denoise,
         editParams.mode,
-        loras,
-        editParams.addNoise
+        loras
       );
     } else {
       workflow = buildAnimaWorkflow(prompt, negPrompt, settings, loras);
