@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ComfyGen — Anima Image Generator</title>
+  <!-- Google Fonts for premium typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="/src/index.css">
+</head>
+<body>
+  <!-- Main Application Wrapper -->
+  <div id="app-container">
+    
+    <!-- Background Space (Subtle grid pattern) -->
+    <div class="grid-background"></div>
+
+    <!-- LEFT FLOATING MENU DRAWER -->
+    <div id="left-menu-drawer" class="floating-drawer left-drawer">
+      <!-- Trigger Content (visible when collapsed) -->
+      <div id="btn-toggle-left-menu" class="drawer-trigger-content" title="Open Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </div>
+      <!-- Main Content (visible when open) -->
+      <div class="drawer-main-content">
+        <div class="drawer-header">
+          <span class="drawer-title">Menu</span>
+          <button id="btn-close-left-menu" class="btn-icon-close" title="Close Menu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      <div class="drawer-body left-menu-body">
+        <button id="menu-btn-create" class="menu-action-btn active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          <span>Create</span>
+        </button>
+        <button id="menu-btn-album" class="menu-action-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <span>Album</span>
+        </button>
+        <div class="menu-divider"></div>
+        <button id="menu-btn-settings" class="menu-action-btn settings-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span>Settings</span>
+        </button>
+      </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS DRAWER (Category navigation) -->
+    <div id="settings-drawer" class="floating-drawer settings-drawer">
+      <!-- Trigger Content -->
+      <div class="drawer-trigger-content">
+        <!-- Settings has no direct button on the screen except in left menu, so we can hide the trigger -->
+      </div>
+      <!-- Main Content -->
+      <div class="drawer-main-content">
+        <div class="drawer-header">
+          <span class="drawer-title">Settings</span>
+          <button id="btn-close-settings" class="btn-icon-close" title="Close Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="drawer-body left-menu-body">
+
+          <!-- Server & API -->
+          <button id="settings-nav-server" class="menu-action-btn settings-nav-btn" data-panel="settings-panel-server">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+              <line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>
+            </svg>
+            <span>Server &amp; API</span>
+            <svg class="settings-nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+
+          <!-- Generation -->
+          <button id="settings-nav-generation" class="menu-action-btn settings-nav-btn" data-panel="settings-panel-generation">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            <span>Generation</span>
+            <svg class="settings-nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+
+          <!-- AI Assistant -->
+          <button id="settings-nav-ai" class="menu-action-btn settings-nav-btn" data-panel="settings-panel-ai">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"/><path d="M12 8v4l3 3"/>
+            </svg>
+            <span>AI Assistant</span>
+            <svg class="settings-nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+
+          <!-- Tags Manager -->
+          <button id="settings-nav-tags" class="menu-action-btn settings-nav-btn" data-panel="settings-panel-tags">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+              <line x1="7" y1="7" x2="7.01" y2="7"/>
+            </svg>
+            <span>Tags Manager</span>
+            <svg class="settings-nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+
+          <div class="menu-divider"></div>
+
+          <!-- Save button in nav -->
+          <button id="btn-save-settings" class="menu-action-btn" style="color: var(--text-accent);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span>Save Configurations</span>
+          </button>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- SUB-PANEL: Server & API -->
+    <div id="settings-panel-server" class="floating-drawer settings-sub-panel">
+      <div class="drawer-main-content">
+        <div class="drawer-header">
+          <span class="drawer-title">Server &amp; API</span>
+          <button class="btn-icon-close btn-close-sub-panel" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="drawer-body">
+          <div class="settings-group">
+            <label class="settings-label">ComfyUI Server URL</label>
+            <input type="text" id="setting-comfyui-url" class="settings-input" placeholder="http://localhost:8188">
+          </div>
+          <div class="settings-group">
+            <label class="settings-label">AI Assistant API URL</label>
+            <input type="text" id="setting-ai-url" class="settings-input" placeholder="http://localhost:5001">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUB-PANEL: Generation -->
+    <div id="settings-panel-generation" class="floating-drawer settings-sub-panel">
+      <div class="drawer-main-content">
+        <div class="drawer-header">
+          <span class="drawer-title">Generation</span>
+          <button class="btn-icon-close btn-close-sub-panel" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="drawer-body">
+          <div class="settings-row">
+            <div class="settings-group half">
+              <label class="settings-label">KSampler Steps</label>
+              <input type="number" id="setting-comfyui-steps" class="settings-input" value="30">
+            </div>
+            <div class="settings-group half">
+              <label class="settings-label">CFG Scale</label>
+              <input type="number" step="0.1" id="setting-comfyui-cfg" class="settings-input" value="4.5">
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-group half">
+              <label class="settings-label">LLLite Model (Inpaint)</label>
+              <input type="text" id="setting-comfyui-lllite-name" class="settings-input" placeholder="anima-lllite-inpainting-v2.safetensors">
+            </div>
+            <div class="settings-group half">
+              <label class="settings-label">LLLite Strength</label>
+              <input type="number" step="0.1" id="setting-comfyui-lllite-strength" class="settings-input" value="1.0">
+            </div>
+          </div>
+          <div class="settings-group">
+            <label class="settings-label">LLLite Model (Img2Img)</label>
+            <input type="text" id="setting-comfyui-lllite-name-img2img" class="settings-input" placeholder="anima-lllite-any-test-like-v2.safetensors">
+          </div>
+          <div class="settings-group">
+            <label class="settings-label">Negative Prompt</label>
+            <textarea id="setting-comfyui-negative" class="settings-textarea" rows="3">lowres, bad anatomy, worst quality, blurry, watermark</textarea>
+          </div>
+          <div class="settings-group">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <label class="settings-label" for="setting-free-memory-interval">Auto-clear VRAM Interval</label>
+              <span id="setting-free-memory-val" style="font-size:12px; color:var(--text-accent); font-weight:600;">Every 3 generations</span>
+            </div>
+            <input type="range" id="setting-free-memory-interval" min="0" max="10" step="1" class="settings-slider-input" value="3">
+            <div style="font-size:11px; color:var(--text-tertiary); line-height: 1.4; margin-top:2px;">
+              Unloads ComfyUI models from VRAM after a set number of runs to prevent color washing (FP16 VAE degradation) and model lag. Set to 0 to disable.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUB-PANEL: AI Assistant -->
+    <div id="settings-panel-ai" class="floating-drawer settings-sub-panel">
+      <div class="drawer-main-content">
+        <div class="drawer-header">
+          <span class="drawer-title">AI Assistant</span>
+          <button class="btn-icon-close btn-close-sub-panel" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="drawer-body">
+          <div class="settings-group">
+            <label class="settings-label">AI System Instructions</label>
+            <div style="font-size:11px; color:var(--text-tertiary); line-height:1.4; margin-bottom:6px;">
+              Defines how the AI assistant behaves when helping you write prompts.
+            </div>
+            <textarea id="setting-ai-instructions" class="settings-textarea" rows="10">You are an expert prompt engineer. Help the user create amazing stylized/non-realistic image generation prompts. Strictly avoid realistic styling, photorealism, and terms like "photorealistic", "realistic", "realism", "8k", "4k", "soft shadows", "ultra detailed textures", "unreal engine", "octane render".</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUB-PANEL: Tags Manager -->
+    <div id="settings-panel-tags" class="floating-drawer settings-sub-panel">
+      <div class="drawer-main-content">
+        <div class="drawer-header">
+          <span class="drawer-title">Tags Manager</span>
+          <button class="btn-icon-close btn-close-sub-panel" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="drawer-body">
+          <!-- Category Manager list and add form -->
+          <div class="settings-group" style="padding-bottom: 4px;">
+            <label class="settings-label">Active Categories</label>
+            <div id="addon-categories-list" class="addon-list-container">
+              <!-- Populated via Javascript -->
+            </div>
+          </div>
+          
+          <div class="settings-row" style="padding: 0 20px; gap: 8px;">
+            <div style="flex: 1;">
+              <input type="text" id="addon-category-key" class="settings-input" placeholder="Category Key (e.g. lighting)" style="font-size: 11px; padding: 8px 10px;">
+            </div>
+            <div style="flex: 1;">
+              <input type="text" id="addon-category-name" class="settings-input" placeholder="Category Name (e.g. Lighting)" style="font-size: 11px; padding: 8px 10px;">
+            </div>
+          </div>
+          <div class="settings-group" style="padding-top: 8px; padding-bottom: 8px;">
+            <button id="btn-addon-add-category" class="btn-secondary-action" style="font-size: 11px; padding: 8px 12px; justify-content: center; width: 100%; border-radius: 8px;">Add Category</button>
+          </div>
+
+          <div class="menu-divider" style="margin: 4px 20px 12px;"></div>
+
+          <!-- Import Tags form -->
+          <div class="settings-group" style="padding-top: 4px; padding-bottom: 4px;">
+            <label class="settings-label">Import Tags (JSON File)</label>
+            <select id="addon-import-category-select" class="settings-input" style="padding: 8px 10px; font-size: 12px; margin-bottom: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+              <option value="">-- Select Category or auto-detect --</option>
+              <!-- Populated via Javascript -->
+            </select>
+            <input type="file" id="addon-import-file" accept=".json" style="display: none;" multiple>
+            <button id="btn-addon-choose-file" class="btn-secondary-action" style="font-size: 11px; padding: 8px 12px; justify-content: center; width: 100%; border-radius: 8px; margin-bottom: 8px;">
+              Choose JSON File
+            </button>
+            <div id="addon-chosen-file-name" style="font-size: 11px; color: var(--text-secondary); text-align: center; margin-bottom: 8px; font-style: italic;">No file selected</div>
+            <button id="btn-addon-import-json" class="btn-primary-settings" style="font-size: 11px; padding: 10px 0; border-radius: 8px;">Import Tags</button>
+          </div>
+          
+          <div class="settings-group" style="padding-top: 8px; padding-bottom: 8px;">
+            <button id="btn-addon-reset-tags" class="btn-secondary-action" style="font-size: 11px; padding: 8px 12px; justify-content: center; width: 100%; border-radius: 8px; border-color: var(--danger-color); color: var(--danger-color); background: rgba(239, 68, 68, 0.05);">
+              Reset Tags to Default
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN CREATION WORKSPACE -->
+    <main id="main-workspace" class="floating-panel main-panel">
+      
+      <!-- SIMPLE & ADVANCED MODE SELECTION BUTTONS -->
+      <div class="mode-tabs-container">
+        <button id="tab-mode-simple" class="mode-tab active">Simple</button>
+        <button id="tab-mode-advanced" class="mode-tab">Advanced</button>
+      </div>
+
+      <!-- MAIN CREATION INTERFACE (FORM) -->
+      <div id="creation-form-container" class="creation-content-wrapper">
+        <!-- Label above the prompt box -->
+        <div class="prompt-section-label">What do you want to create?</div>
+
+        <!-- Prompt Textarea Input -->
+        <div class="prompt-input-container">
+          <textarea id="prompt-text-input" placeholder="An elf girl walking through the neon-lit streets..." rows="4"></textarea>
+        </div>
+
+        <!-- ADVANCED MODE MODULAR PANEL -->
+        <div id="advanced-modular-panel" class="advanced-panel hidden">
+          <!-- Categories Sidebar tabs -->
+          <div class="tags-categories-bar">
+            <!-- Populated via Javascript -->
+          </div>
+          <!-- Tags sub-grid for active category -->
+          <div class="tags-grid-container">
+            <div class="tags-grid-header">Select tags to append:</div>
+            <div id="category-tags-grid" class="tags-grid">
+              <!-- Populated via Javascript -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ACTIVE COMPOSED TAGS / PROMPT PREVIEW -->
+        <div class="prompt-preview-container">
+          <div class="prompt-preview-header">
+            <span>Composed Prompt Tags</span>
+            <button id="btn-clear-tags" class="btn-text-action" style="font-size: 11px;">Clear All</button>
+          </div>
+          <div id="active-tags-list" class="active-tags-chips-wrapper">
+            <div class="no-tags-placeholder">No active tags. Use Advanced mode to compose.</div>
+          </div>
+        </div>
+
+        <!-- IMAGE SIZE CONTROL -->
+        <div class="image-size-container">
+          <div class="image-size-header">
+            <span>Image Size</span>
+            <span id="active-size-display" class="active-size-display">832 × 1216</span>
+          </div>
+          <div class="image-size-body">
+            <select id="size-category-select" class="size-category-dropdown">
+              <option value="square">Square (1:1)</option>
+              <option value="album">Album</option>
+              <option value="vertical">Vertical</option>
+            </select>
+            <div id="size-resolutions-list" class="size-resolutions-list">
+              <!-- Dynamically populated via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- LORA SELECTION SECTION -->
+        <div id="loras-wrapper" class="loras-wrapper">
+          <div id="loras-list" class="loras-list">
+            <!-- Dynamically populated via JS -->
+          </div>
+          <button id="btn-add-lora" class="btn-add-lora">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="plus-icon">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Add Lora</span>
+          </button>
+        </div>
+
+        <!-- GENERATE TRIGGER BUTTON -->
+        <div class="creation-actions">
+          <div class="split-button-container">
+            <button id="btn-surprise-me" class="btn-surprise-left">Surprise me</button>
+            <div class="btn-surprise-divider"></div>
+            <button id="btn-surprise-settings" class="btn-surprise-right" title="Configure Surprise Me">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </button>
+            <div id="surprise-settings-dropdown" class="surprise-dropdown hidden">
+              <div class="surprise-dropdown-header">Randomize Categories</div>
+              <div id="surprise-categories-list" class="surprise-dropdown-list">
+                <!-- Populated dynamically -->
+              </div>
+            </div>
+          </div>
+          <button id="btn-improve-prompt" class="btn-secondary-action">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spark-icon">
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+            </svg>
+            <span>Improve</span>
+          </button>
+          <button id="btn-generate" class="btn-generate-art">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spark-icon">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span>Generate Art</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- IMAGE EDITOR INTERFACE -->
+      <div id="image-editor-container" class="editor-content-wrapper hidden">
+        <div class="editor-workspace">
+          <!-- Drawing Canvas Panel -->
+          <div class="editor-canvas-column">
+            <div id="editor-canvas-wrapper" class="editor-canvas-wrapper">
+              <img id="editor-source-img" src="" alt="Source image to edit">
+              <canvas id="editor-mask-canvas"></canvas>
+              <div id="editor-brush-cursor" class="editor-brush-cursor"></div>
+            </div>
+          </div>
+          <!-- Settings and Tools Panel -->
+          <div class="editor-sidebar-column">
+            <div class="editor-sidebar-header">Edit Settings</div>
+            
+            <!-- Edit Prompt Field -->
+            <div class="editor-settings-group">
+              <label class="editor-settings-label">Edit Prompt</label>
+              <textarea
+                id="editor-prompt-input"
+                class="editor-prompt-textarea"
+                placeholder="Describe what should appear in the painted area... (e.g. red scarf, glowing eyes, fire magic)"
+                rows="3"
+              ></textarea>
+              <div class="editor-tip-text" style="margin-top: 6px;">
+                Leave empty to use the main prompt from the Create panel.
+              </div>
+            </div>
+
+          <div class="editor-settings-group">
+              <label class="editor-settings-label">Edit Mode</label>
+              <div class="editor-mode-toggle-group">
+                <button id="btn-editor-mode-inpaint" class="editor-toggle-btn active">Local Edit (Inpaint)</button>
+                <button id="btn-editor-mode-img2img" class="editor-toggle-btn">Global Edit (Img2Img)</button>
+              </div>
+            </div>
+
+            <!-- Brush controls container (only shown in Inpaint mode) -->
+            <div id="editor-brush-controls" class="editor-settings-group">
+              <label class="editor-settings-label">Brush Controls</label>
+              <div class="editor-mode-toggle-group" style="margin-bottom: 12px;">
+                <button id="btn-editor-brush-draw" class="editor-toggle-btn active">Draw Mask</button>
+                <button id="btn-editor-brush-erase" class="editor-toggle-btn">Eraser</button>
+              </div>
+              <div class="editor-slider-container">
+                <div class="editor-slider-header">
+                  <span>Brush Size</span>
+                  <span id="editor-brush-size-val">20px</span>
+                </div>
+                <input type="range" id="input-editor-brush-size" min="5" max="100" step="1" value="20" class="settings-slider-input">
+              </div>
+              <button id="btn-editor-clear-mask" class="btn-secondary-action" style="margin-top: 10px; width: 100%; justify-content: center; font-size: 12px; padding: 10px;">
+                Clear Mask
+              </button>
+            </div>
+
+            <!-- Denoising Strength slider -->
+            <div class="editor-settings-group">
+              <div class="editor-slider-container">
+                <div class="editor-slider-header">
+                  <span>Denoising Strength</span>
+                  <span id="editor-denoise-val">0.75</span>
+                </div>
+                <input type="range" id="input-editor-denoise" min="0.0" max="1.0" step="0.05" value="0.75" class="settings-slider-input">
+              </div>
+              <div class="editor-tip-text">
+                Higher values mean more significant changes. (For inpainting: 0.7-0.9 recommended; for img2img: 0.4-0.6 recommended).
+              </div>
+            </div>
+
+            <!-- Add Noise Toggle -->
+            <div class="editor-settings-group" id="editor-add-noise-group" style="margin-top: 15px; display: flex; align-items: center; justify-content: space-between;">
+              <div style="display: flex; flex-direction: column;">
+                <label for="input-editor-add-noise" style="color: var(--text-color); font-size: 14px; font-weight: 500;">Add Latent Noise</label>
+                <span style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Replaces mask with pure noise</span>
+              </div>
+              <input type="checkbox" id="input-editor-add-noise" checked style="width: 18px; height: 18px; cursor: pointer;">
+            </div>
+
+            <div class="editor-actions-row">
+              <button id="btn-editor-cancel" class="btn-secondary-action" style="flex: 1; justify-content: center; border-radius: 20px;">
+                Cancel
+              </button>
+              <button id="btn-editor-generate" class="btn-generate-art" style="flex: 1.2; justify-content: center; border-radius: 20px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spark-icon">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span>Generate Edit</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- IMPROVE CONFIRMATION AREA -->
+      <div id="improve-confirmation-container" class="creation-content-wrapper hidden">
+        <div class="prompt-section-label">Improved Prompt Proposal</div>
+        
+        <!-- Improved Prompt Textarea Preview -->
+        <div class="prompt-input-container improved-container">
+          <textarea id="improved-prompt-preview" readonly rows="6"></textarea>
+        </div>
+
+        <div class="improve-instruction-text">
+          AI has enhanced your prompt for better details, lighting, and style composition. You can generate art with it now, or go back to keep editing your original prompt.
+        </div>
+
+        <!-- Actions: Generate vs Back -->
+        <div class="creation-actions">
+          <button id="btn-improve-back" class="btn-secondary-action">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span>Back</span>
+          </button>
+          <button id="btn-improve-generate" class="btn-generate-art">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spark-icon">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span>Generate Art</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="generation-loader" class="loader-content-wrapper hidden">
+        <!-- Live Preview Image from KSampler -->
+        <img id="generation-live-preview" class="generation-live-preview hidden" alt="Live preview">
+        <div class="loader-circle-container">
+          <div class="loader-circle-spinner"></div>
+          <div id="loader-stage-text" class="loader-stage-text">Waiting in ComfyUI queue...</div>
+        </div>
+        <button id="btn-cancel-generation" class="btn-cancel-generation">
+          Cancel Generation
+        </button>
+      </div>
+
+      <!-- ART PREVIEW AREA (Finished state) -->
+      <div id="art-preview-area" class="art-preview-wrapper hidden">
+        <div class="art-preview-canvas">
+          <img id="generated-art-img" src="" alt="Generated artwork preview">
+        </div>
+        <!-- Post-Generation Buttons -->
+        <div class="post-gen-actions-bar">
+          <button id="btn-post-regenerate" class="post-action-btn regen-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+            <span>Regenerate</span>
+          </button>
+          <button id="btn-post-delete" class="post-action-btn delete-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+            <span>Discard</span>
+          </button>
+          <button id="btn-post-edit" class="post-action-btn edit-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
+            <span>Edit</span>
+          </button>
+          <button id="btn-post-save" class="post-action-btn save-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span>Save to Album</span>
+          </button>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- FULLPAGE ALBUM WORKSPACE -->
+    <main id="album-workspace" class="floating-panel main-panel hidden">
+      <div class="album-workspace-header">
+        <div class="album-header-title-row">
+          <span class="album-header-title">Gallery Album</span>
+          <button id="btn-album-random" class="btn-primary-settings btn-album-random">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="random-icon">
+              <!-- Random / Shuffle icon -->
+              <polyline points="16 3 21 3 21 8"></polyline>
+              <line x1="4" y1="20" x2="21" y2="3"></line>
+              <polyline points="21 16 21 21 16 21"></polyline>
+              <line x1="15" y1="15" x2="21" y2="21"></line>
+              <line x1="4" y1="4" x2="9" y2="9"></line>
+            </svg>
+            <span>Random Artwork</span>
+          </button>
+        </div>
+        
+        <!-- Stats container with Pie chart and legend -->
+        <div id="album-stats-container" class="album-stats-container">
+          <div class="album-stats-chart-wrapper">
+            <div id="album-stats-chart" class="album-stats-chart">
+              <div class="album-stats-chart-inner"></div>
+            </div>
+          </div>
+          <div id="album-stats-legend" class="album-stats-legend">
+            <!-- Populated via Javascript -->
+          </div>
+        </div>
+      </div>
+      
+      <div class="album-workspace-body">
+        <div id="album-workspace-groups" class="album-groups-container">
+          <!-- Populated via Javascript -->
+        </div>
+      </div>
+    </main>
+
+    <!-- BOTTOM HELP DRAWER (AI PROMPT CHAT) -->
+    <div id="help-drawer" class="floating-drawer help-drawer">
+      <!-- Trigger Content -->
+      <div id="btn-toggle-help" class="drawer-trigger-content" title="AI Prompt Assistant">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="arrow-up-icon">
+          <polyline points="6 15 12 9 18 15"></polyline>
+        </svg>
+        <span class="help-label">Help</span>
+      </div>
+      <!-- Main Content -->
+      <div class="drawer-main-content">
+        <div class="drawer-header">
+          <span class="drawer-title">AI Prompt Helper</span>
+          <div style="display: flex; gap: 4px; align-items: center;">
+            <button id="btn-clear-chat" class="btn-icon-close" title="Clear Chat">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </button>
+            <button id="btn-close-help" class="btn-icon-close" title="Close Help">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+      <div class="drawer-body chat-drawer-body">
+        <!-- Chat Message Thread -->
+        <div id="chat-messages-container" class="chat-messages-thread">
+          <div class="system-chat-message">
+            What can I help with?
+          </div>
+        </div>
+        <!-- Chat Input Footer -->
+        <div class="chat-input-panel">
+          <input type="text" id="chat-text-input" placeholder="Type your message..." class="chat-input-field">
+          <button id="btn-send-chat" class="chat-send-btn" title="Send message">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <!-- RIGHT SIDEBAR ALBUM DRAWER -->
+    <div id="album-drawer" class="floating-drawer right-drawer">
+      <!-- Trigger Content -->
+      <div id="btn-toggle-album" class="drawer-trigger-content" title="Show Album">
+        <span>Show Album</span>
+      </div>
+      <!-- Main Content -->
+      <div class="drawer-main-content">
+        <div class="drawer-header">
+          <span class="drawer-title">Gallery Album</span>
+          <button id="btn-close-album" class="btn-icon-close" title="Close Album">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      <div class="drawer-body gallery-drawer-body">
+        <!-- Gallery Grid -->
+        <div id="gallery-album-grid" class="gallery-grid">
+          <!-- Populated via Javascript -->
+          <div class="empty-gallery-placeholder">
+            No saved images yet. Generate art and click "Save to Album"!
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <!-- Fullscreen Image Lightbox Overlay -->
+    <div id="image-lightbox" class="image-lightbox hidden">
+      <button class="lightbox-close" id="lightbox-close">&times;</button>
+      <div class="lightbox-content" id="lightbox-content">
+        <img id="lightbox-img" src="" alt="Lightbox Image">
+      </div>
+      <!-- Caption Panel -->
+      <div id="lightbox-caption" class="lightbox-caption hidden">
+        <div class="lightbox-prompt-label">Prompt</div>
+        <p id="lightbox-prompt-text" class="lightbox-prompt-text"></p>
+        <div id="lightbox-tags-container" class="lightbox-tags-container"></div>
+      </div>
+      <div class="lightbox-controls">
+        <button id="btn-lightbox-edit" class="lightbox-btn" title="Edit Image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </button>
+        <button id="btn-lightbox-zoom-out" class="lightbox-btn" title="Zoom Out">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button id="btn-lightbox-zoom-reset" class="lightbox-btn reset" title="Reset Zoom">100%</button>
+        <button id="btn-lightbox-zoom-in" class="lightbox-btn" title="Zoom In">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Main Entry Point Module -->
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

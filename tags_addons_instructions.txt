@@ -1,0 +1,141 @@
+========================================================================
+ComfyGen — Tags Addon & Category Management Instructions
+========================================================================
+
+ComfyGen features a flexible Tag Addon system. You can create custom tag categories, delete them, and import custom tags (including single tags and tag combos/sets) via JSON files.
+
+All your customizations are automatically stored in the browser's localStorage under the key 'comfygen_custom_tags'.
+
+------------------------------------------------------------------------
+Default Categories (Built-in)
+------------------------------------------------------------------------
+
+The following categories are already available in ComfyGen by default:
+- `pose` (Pose)
+- `character` (Character)
+- `background` (Background)
+- `style` (Style)
+- `age` (Age)
+- `hair` (Hair)
+- `expression` (Expression)
+- `clothing` (Clothing)
+
+You can import new tags or tag combos directly into these categories. 
+
+IMPORTANT: Creating new custom categories is discouraged. To keep the UI clean and organized, it is highly recommended to add new tags under subcategories of the already existing categories instead.
+
+------------------------------------------------------------------------
+1. JSON Import Formats
+------------------------------------------------------------------------
+
+The system accepts four structures of JSON files:
+
+A. Flat Tag List (requires selecting a category in the UI)
+   Use this to add a list of single tags to an existing or custom category.
+   You can specify a "subcategory" field to group tags under a collapsible section.
+   
+   Format:
+   [
+     {
+       "tag": "photorealistic",
+       "name": "Photorealistic style",
+       "description": "High detail real-life rendering style"
+     },
+     {
+       "tag": "hanfu",
+       "name": "Hanfu",
+       "description": "Traditional Chinese clothing",
+       "subcategory": "Chinese"
+     }
+   ]
+
+B. Tag Combos / Sets List (requires selecting a category in the UI)
+   A tag combo groups multiple tags under a single clickable button. In the 
+   workspace, it appears as one chip. When generating art, it automatically 
+   expands into all its sub-tags and deduplicates them. Can also have a "subcategory".
+   
+   Format:
+   [
+     {
+       "tag": "Victory / Relief",
+       "name": "Victory & Relief Pose combo",
+       "description": "An epic pose showing emotional victory and relief",
+       "subcategory": "Victory Poses",
+       "sub_tags": [
+         "looking up at the sky",
+         "arms wide open",
+         "laughing with relief",
+         "sunset background"
+       ]
+     }
+   ]
+
+C. Full Category Pack (automatically manages categories)
+   You can define a new category and import its tags simultaneously. If the 
+   category key doesn't exist, it will be created automatically. You can specify
+   both "tags" (which go to General) and "subcategories" lists.
+   
+   Format:
+   {
+     "category": "clothing",
+     "name": "Clothing",
+     "tags": [
+       {
+         "tag": "casual clothes",
+         "name": "Casual Clothes",
+         "description": "General casual wear"
+       }
+     ],
+     "subcategories": [
+       {
+         "name": "Chinese",
+         "tags": [
+           {
+             "tag": "hanfu",
+             "name": "Hanfu",
+             "description": "Traditional Chinese robe"
+           },
+           {
+             "tag": "cheongsam",
+             "name": "Cheongsam",
+             "description": "Traditional Chinese dress"
+           }
+         ]
+       }
+     ]
+   }
+
+D. Subcategories List (requires selecting a category in the UI)
+   You can import a list of subcategories into an existing category.
+   
+   Format:
+   {
+     "subcategories": [
+       {
+         "name": "Chinese",
+         "tags": [
+           {
+             "tag": "hanfu",
+             "name": "Hanfu"
+           }
+         ]
+       }
+     ]
+   }
+
+------------------------------------------------------------------------
+2. How to Manage Categories and Import Tags
+------------------------------------------------------------------------
+
+1. Open the "Settings" panel (click the bottom-left Menu arrow button, then click "Settings").
+2. Scroll down to the "TAGS ADDON MANAGER" section.
+3. To add a category:
+   - Enter a Category Key (lowercase, no spaces, e.g. "lighting").
+   - Enter a Category Name (friendly display name, e.g. "Lighting").
+   - Click "Add Category".
+4. To import tags:
+   - Select the target category from the dropdown (or it will auto-detect if importing a Category Pack JSON).
+   - Click "Choose File" and select your `.json` file containing tags or combos.
+   - Click "Import JSON".
+5. To reset:
+   - Click "Reset Tags to Default" to clear all custom categories and imported tags.
