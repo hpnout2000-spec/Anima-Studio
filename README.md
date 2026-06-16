@@ -68,3 +68,10 @@ To use the specialized Image Editor, you must install the LLLite custom nodes an
 - Download Link: [Hugging Face - kohya-ss/Anima-LLLite/anima-lllite-inpainting-v2.safetensors](https://huggingface.co/kohya-ss/Anima-LLLite/resolve/main/anima-lllite-inpainting-v2.safetensors)
 
 After downloading the file, verify that the LLLite weights filename matches the "LLLite Model Name" in your ComfyGen settings panel.
+
+#### Edit Pro (Split-Screen) Required Nodes
+To use the **Edit Pro** mode, the following custom node packs must be installed (available via ComfyUI Manager):
+- **ComfyUI_essentials** (for `ImageResize+` node)
+- **ComfyUI-KJNodes** (for `ImagePadKJ` node)
+- **AILab-Nodes** (for `AILab_ICLoRAConcat` node)
+- **ComfyUI-JPS-Nodes** (for `Crop Image TargetSize (JPS)` node)

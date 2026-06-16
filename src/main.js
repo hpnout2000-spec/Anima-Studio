@@ -19,6 +19,7 @@ let appState = {
   collapsedSubcategories: {}, // key: activeCategory_subName -> boolean
   generationCount: 0, // Track successful generations for VRAM clearing
   lastSurpriseTags: [], // Track tags added by the last "Surprise me" click
+  lastGenerationMode: null, // Track if last generation was 'creation' or 'editor'
   
   // Editor State
   editorActive: false,
@@ -555,11 +556,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   btnPostDelete.addEventListener('click', () => {
     showToast('Image discarded');
     appState.generatedImageUrl = null;
-    showCreationForm();
+    
+    if (appState.lastGenerationMode === 'editor') {
+      document.getElementById('art-preview-area').classList.add('hidden');
+      document.getElementById('image-editor-container').classList.remove('hidden');
+      appState.editorActive = true;
+    } else {
+      showCreationForm();
+    }
   });
 
   btnPostRegen.addEventListener('click', () => {
-    startImageGeneration();
+    if (appState.lastGenerationMode === 'editor') {
+      startImageEditGeneration();
+    } else {
+      startImageGeneration();
+    }
   });
 
   btnPostSave.addEventListener('click', async () => {
@@ -617,6 +629,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const aiUrl = document.getElementById('setting-ai-url').value.trim() || 'http://localhost:5001';
     const steps = parseInt(document.getElementById('setting-comfyui-steps').value) || 30;
     const cfg = parseFloat(document.getElementById('setting-comfyui-cfg').value) || 4.5;
+    const sampler = document.getElementById('setting-comfyui-sampler').value || 'er_sde';
+    const scheduler = document.getElementById('setting-comfyui-scheduler').value || 'simple';
     const llliteName = document.getElementById('setting-comfyui-lllite-name').value.trim();
     const llliteNameImg2Img = document.getElementById('setting-comfyui-lllite-name-img2img')?.value.trim() || '';
     const llliteStrength = parseFloat(document.getElementById('setting-comfyui-lllite-strength').value) ?? 1.0;
@@ -632,6 +646,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       ai_url: aiUrl,
       comfyui_steps: steps,
       comfyui_cfg: cfg,
+      comfyui_sampler: sampler,
+      comfyui_scheduler: scheduler,
       comfyui_lllite_name: llliteName,
       comfyui_lllite_name_img2img: llliteNameImg2Img,
       comfyui_lllite_strength: llliteStrength,
@@ -958,6 +974,12 @@ function initSettingsForm() {
   document.getElementById('setting-ai-url').value = settings.ai_url;
   document.getElementById('setting-comfyui-steps').value = settings.comfyui_steps;
   document.getElementById('setting-comfyui-cfg').value = settings.comfyui_cfg;
+  if(document.getElementById('setting-comfyui-sampler')) {
+    document.getElementById('setting-comfyui-sampler').value = settings.comfyui_sampler || 'er_sde';
+  }
+  if(document.getElementById('setting-comfyui-scheduler')) {
+    document.getElementById('setting-comfyui-scheduler').value = settings.comfyui_scheduler || 'simple';
+  }
   document.getElementById('setting-comfyui-lllite-name').value = settings.comfyui_lllite_name || '';
   document.getElementById('setting-comfyui-lllite-strength').value = settings.comfyui_lllite_strength ?? 1.0;
   const llliteImg2ImgEl = document.getElementById('setting-comfyui-lllite-name-img2img');
@@ -1447,6 +1469,7 @@ function getFinalPrompt() {
 }
 
 async function startImageGeneration() {
+  appState.lastGenerationMode = 'creation';
   const finalPrompt = getFinalPrompt();
   if (!finalPrompt.trim()) {
     showToast('Prompt cannot be empty', 'error');
@@ -2560,9 +2583,10 @@ function initImageEditor() {
   // Editor mode selections
   const btnInpaint = document.getElementById('btn-editor-mode-inpaint');
   const btnImg2Img = document.getElementById('btn-editor-mode-img2img');
+  const btnEditPro = document.getElementById('btn-editor-mode-edit-pro');
   const brushControls = document.getElementById('editor-brush-controls');
 
-  if (btnInpaint && btnImg2Img && brushControls) {
+  if (btnInpaint && btnImg2Img && btnEditPro && brushControls) {
     const btnBrushDraw = document.getElementById('btn-editor-brush-draw');
     const btnBrushSketch = document.getElementById('btn-editor-brush-sketch');
     const paletteGroup = document.getElementById('editor-color-palette');
@@ -2571,6 +2595,7 @@ function initImageEditor() {
       appState.editorMode = 'inpaint';
       btnInpaint.classList.add('active');
       btnImg2Img.classList.remove('active');
+      btnEditPro.classList.remove('active');
       brushControls.style.display = 'block';
       if (btnBrushDraw) btnBrushDraw.style.display = ''; // Restore default display
       
@@ -2587,6 +2612,7 @@ function initImageEditor() {
       appState.editorMode = 'img2img';
       btnImg2Img.classList.add('active');
       btnInpaint.classList.remove('active');
+      btnEditPro.classList.remove('active');
       brushControls.style.display = 'block'; // Keep brush controls visible
       
       // Force sketch mode for global edit
@@ -2602,6 +2628,21 @@ function initImageEditor() {
       document.getElementById('input-editor-denoise').value = 0.55;
       document.getElementById('editor-denoise-val').textContent = '0.55';
       appState.denoise = 0.55;
+    });
+
+    btnEditPro.addEventListener('click', () => {
+      appState.editorMode = 'edit-pro';
+      btnEditPro.classList.add('active');
+      btnInpaint.classList.remove('active');
+      btnImg2Img.classList.remove('active');
+      
+      // Hide brush controls entirely since this method is prompt-based
+      brushControls.style.display = 'none';
+      
+      // Update denoise default for Edit Pro
+      document.getElementById('input-editor-denoise').value = 1.0;
+      document.getElementById('editor-denoise-val').textContent = '1.0';
+      appState.denoise = 1.0;
     });
   }
 
@@ -2699,6 +2740,7 @@ function initImageEditor() {
 }
 
 async function startImageEditGeneration() {
+  appState.lastGenerationMode = 'editor';
   // If the editor has its own prompt, use it; otherwise fall back to the main prompt
   const editorPromptEl = document.getElementById('editor-prompt-input');
   const editorPromptText = editorPromptEl ? editorPromptEl.value.trim() : '';

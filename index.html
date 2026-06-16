@@ -184,6 +184,27 @@
           </div>
           <div class="settings-row">
             <div class="settings-group half">
+              <label class="settings-label">Sampler</label>
+              <select id="setting-comfyui-sampler" class="settings-input">
+                <option value="er_sde">er_sde (Recommended)</option>
+                <option value="uni_pc">uni_pc (Fast)</option>
+                <option value="dpmpp_2m_sde_gpu">dpmpp_2m_sde_gpu (Creative)</option>
+                <option value="euler_a">euler_a (Soft Details)</option>
+                <option value="euler">euler</option>
+              </select>
+            </div>
+            <div class="settings-group half">
+              <label class="settings-label">Scheduler</label>
+              <select id="setting-comfyui-scheduler" class="settings-input">
+                <option value="simple">simple (Recommended)</option>
+                <option value="ddim_uniform">ddim_uniform (Fast)</option>
+                <option value="normal">normal</option>
+                <option value="beta">beta</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-group half">
               <label class="settings-label">LLLite Model (Inpaint)</label>
               <input type="text" id="setting-comfyui-lllite-name" class="settings-input" placeholder="anima-lllite-inpainting-v2.safetensors">
             </div>
@@ -439,7 +460,8 @@
               <label class="editor-settings-label">Edit Mode</label>
               <div class="editor-mode-toggle-group">
                 <button id="btn-editor-mode-inpaint" class="editor-toggle-btn active">Local Edit (Inpaint)</button>
-                <button id="btn-editor-mode-img2img" class="editor-toggle-btn">Global Edit (Img2Img)</button>
+                <button id="btn-editor-mode-img2img" class="editor-toggle-btn">Global Edit</button>
+                <button id="btn-editor-mode-edit-pro" class="editor-toggle-btn">Edit Pro</button>
               </div>
             </div>
 

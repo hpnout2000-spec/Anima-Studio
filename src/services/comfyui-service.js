@@ -231,7 +231,16 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
           "channel": "red"
         }
       };
-      workflow["15"].inputs["mask"] = ["12", 0];
+      // Smooth the mask to prevent visible seams
+      workflow["12_blur"] = {
+        "class_type": "MaskBlur+",
+        "inputs": {
+          "mask": ["12", 0],
+          "amount": 21,
+          "device": "auto"
+        }
+      };
+      workflow["15"].inputs["mask"] = ["12_blur", 0];
     }
     // img2img LLLite model does NOT use a mask — no mask input added
 
@@ -245,6 +254,14 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
         "channel": "red"
       }
     };
+    workflow["12_blur"] = {
+      "class_type": "MaskBlur+",
+      "inputs": {
+        "mask": ["12", 0],
+        "amount": 21,
+        "device": "auto"
+      }
+    };
   }
 
   // Latent encoding setup
@@ -254,7 +271,7 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
       "inputs": {
         "pixels": ["10", 0],
         "vae": ["3", 0],
-        "mask": ["12", 0],
+        "mask": ["12_blur", 0],
         "grow_mask_by": 6
       }
     };
@@ -317,6 +334,150 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
       "filename_prefix": "comfygen_edit_"
     }
   };
+
+  return workflow;
+}
+
+/**
+ * Build the Anima Edit Pro workflow (Split-Screen Outpainting)
+ */
+function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, denoise, loras = []) {
+  const seed = Math.floor(Math.random() * 2 ** 32);
+  const steps = settings.comfyui_steps ?? 30;
+  const cfg = settings.comfyui_cfg ?? 4.5;
+  const sampler = settings.comfyui_sampler ?? 'euler';
+  const scheduler = settings.comfyui_scheduler ?? 'normal';
+  const unetName = settings.comfyui_unet_name ?? 'anima_baseV10.safetensors';
+  const clipName = settings.comfyui_clip_name ?? 'qwen_3_06b_base.safetensors';
+  const vaeName = settings.comfyui_vae_name ?? 'qwen_image_vae.safetensors';
+  const llliteName = settings.comfyui_lllite_name || 'anima-lllite-inpainting-v2.safetensors';
+  const llliteStrength = settings.comfyui_lllite_strength ?? 1.0;
+
+  const stylePrompt = "masterpiece, best quality";
+  const instructions = "split screen, multiple views, The image on the right is different - \n" + prompt;
+  const finalPrompt = stylePrompt + ", " + instructions;
+
+  let currentModel = ["1", 0];
+  let currentClip = ["2", 0];
+
+  const workflow = {
+    "1": {
+      "class_type": "UNETLoader",
+      "inputs": { "unet_name": unetName, "weight_dtype": "default" }
+    },
+    "2": {
+      "class_type": "CLIPLoader",
+      "inputs": { "clip_name": clipName, "type": "qwen_image" }
+    },
+    "3": {
+      "class_type": "VAELoader",
+      "inputs": { "vae_name": vaeName }
+    },
+    "4": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": finalPrompt, "clip": null }
+    },
+    "5": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": negPrompt || "lowres, bad anatomy, worst quality, blurry, watermark", "clip": null }
+    },
+    "10": {
+      "class_type": "LoadImage",
+      "inputs": { "image": sourceFilename, "upload": "image" }
+    }
+  };
+
+  if (Array.isArray(loras) && loras.length > 0) {
+    loras.forEach((lora, idx) => {
+      const nodeId = String(100 + idx);
+      workflow[nodeId] = {
+        "class_type": "LoraLoader",
+        "inputs": {
+          "model": currentModel,
+          "clip": currentClip,
+          "lora_name": lora.name,
+          "strength_model": lora.strength,
+          "strength_clip": lora.strength
+        }
+      };
+      currentModel = [nodeId, 0];
+      currentClip = [nodeId, 1];
+    });
+  }
+
+  workflow["4"].inputs.clip = currentClip;
+  workflow["5"].inputs.clip = currentClip;
+
+  Object.assign(workflow, {
+    "15": {
+      "class_type": "ImageResize+",
+      "inputs": {
+        "width": 1024, "height": 1024, "interpolation": "lanczos",
+        "method": "keep proportion", "condition": "always", "multiple_of": 0,
+        "image": ["10", 0]
+      }
+    },
+    "51": {
+      "class_type": "ImagePadKJ",
+      "inputs": {
+        "left": 0, "right": 24, "top": 0, "bottom": 0,
+        "extra_padding": 0, "pad_mode": "color", "color": "1,1,1",
+        "image": ["15", 0]
+      }
+    },
+    "12": {
+      "class_type": "AILab_ICLoRAConcat",
+      "inputs": {
+        "layout": "left-right", "custom_size": 0,
+        "object_image": ["51", 0], "base_image": ["15", 0]
+      }
+    },
+    "6": {
+      "class_type": "AnimaLLLiteApply",
+      "inputs": {
+        "lllite_name": llliteName, "strength": llliteStrength,
+        "start_percent": 0, "end_percent": 1, "preserve_wrapper": true,
+        "model": currentModel, "image": ["12", 0], "mask": ["12", 2]
+      }
+    },
+    "50": {
+      "class_type": "InpaintModelConditioning",
+      "inputs": {
+        "noise_mask": true, "positive": ["4", 0], "negative": ["5", 0],
+        "vae": ["3", 0], "pixels": ["12", 0], "mask": ["12", 2]
+      }
+    },
+    "13": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": seed, "steps": steps, "cfg": cfg, "sampler_name": sampler,
+        "scheduler": scheduler, "denoise": denoise, "model": ["6", 0],
+        "positive": ["50", 0], "negative": ["50", 1], "latent_image": ["50", 2]
+      }
+    },
+    "14": {
+      "class_type": "VAEDecodeTiled",
+      "inputs": {
+        "tile_size": 512, "overlap": 64, "temporal_size": 64, "temporal_overlap": 8,
+        "samples": ["13", 0], "vae": ["3", 0]
+      }
+    },
+    "40": {
+      "class_type": "Crop Image TargetSize (JPS)",
+      "inputs": {
+        "target_w": ["15", 1], "target_h": ["15", 2], "crop_position": "right",
+        "offset": 0, "interpolation": "lanczos", "sharpening": 0,
+        "image": ["14", 0]
+      }
+    },
+    "9": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "images": ["40", 0],
+        "filename_prefix": "comfygen_edit_pro_"
+      }
+    }
+  });
 
   return workflow;
 }
@@ -420,16 +581,27 @@ export async function generateImageComfyUI(prompt, onProgress = () => {}, signal
       }
       
       onProgress('Building workflow...');
-      workflow = buildAnimaEditWorkflow(
-        prompt,
-        negPrompt,
-        settings,
-        sourceUpload.name,
-        maskUploadName,
-        editParams.denoise,
-        editParams.mode,
-        loras
-      );
+      if (editParams.mode === 'edit-pro') {
+        workflow = buildAnimaEditProWorkflow(
+          prompt,
+          negPrompt,
+          settings,
+          sourceUpload.name,
+          editParams.denoise,
+          loras
+        );
+      } else {
+        workflow = buildAnimaEditWorkflow(
+          prompt,
+          negPrompt,
+          settings,
+          sourceUpload.name,
+          maskUploadName,
+          editParams.denoise,
+          editParams.mode,
+          loras
+        );
+      }
     } else {
       workflow = buildAnimaWorkflow(prompt, negPrompt, settings, loras);
     }
@@ -446,8 +618,22 @@ export async function generateImageComfyUI(prompt, onProgress = () => {}, signal
             if (onPreview) {
               const arrayBuffer = await event.data.arrayBuffer();
               const imageBlob = new Blob([arrayBuffer.slice(8)], { type: 'image/jpeg' });
-              const imageUrl = URL.createObjectURL(imageBlob);
-              onPreview(imageUrl);
+              
+              if (editParams && editParams.mode === 'edit-pro') {
+                const img = new Image();
+                img.src = URL.createObjectURL(imageBlob);
+                await new Promise(r => img.onload = r);
+                const cvs = document.createElement('canvas');
+                cvs.width = img.width / 2;
+                cvs.height = img.height;
+                const ctx = cvs.getContext('2d');
+                ctx.drawImage(img, img.width / 2, 0, img.width / 2, img.height, 0, 0, cvs.width, cvs.height);
+                onPreview(cvs.toDataURL('image/jpeg'));
+                URL.revokeObjectURL(img.src);
+              } else {
+                const imageUrl = URL.createObjectURL(imageBlob);
+                onPreview(imageUrl);
+              }
             }
             return;
           }
