@@ -37,6 +37,7 @@ export function initLightbox() {
     isDragging = true;
     startX = e.clientX - offsetX;
     startY = e.clientY - offsetY;
+    contentEl.classList.add('dragging');
   });
 
   window.addEventListener('mousemove', (e) => {
@@ -48,10 +49,12 @@ export function initLightbox() {
 
   window.addEventListener('mouseup', () => {
     isDragging = false;
+    contentEl.classList.remove('dragging');
   });
 
   contentEl.addEventListener('mouseleave', () => {
     isDragging = false;
+    contentEl.classList.remove('dragging');
   });
 
   // 2. Mouse Wheel Zoom centered towards cursor

@@ -83,7 +83,9 @@ export const albumStore = {
           url: url,
           prompt: item.prompt,
           tags: item.tags || [],
-          timestamp: item.timestamp
+          timestamp: item.timestamp,
+          parentId: item.parentId || null,
+          modificationPrompt: item.modificationPrompt || null
         };
       });
     } catch (e) {
@@ -106,7 +108,7 @@ export const albumStore = {
     return albumImages;
   },
 
-  async save(imageUrl, prompt, tags = []) {
+  async save(imageUrl, prompt, tags = [], parentId = null, modificationPrompt = null) {
     const id = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const timestamp = new Date().toISOString();
     let blob = null;
@@ -129,7 +131,9 @@ export const albumStore = {
       url: finalUrl,
       prompt,
       tags: [...tags],
-      timestamp
+      timestamp,
+      parentId,
+      modificationPrompt
     };
 
     // Prepend to active memory list
@@ -143,7 +147,9 @@ export const albumStore = {
         blob,
         prompt,
         tags: [...tags],
-        timestamp
+        timestamp,
+        parentId,
+        modificationPrompt
       });
     } catch (e) {
       console.error('Failed to save image to IndexedDB:', e);
@@ -156,7 +162,9 @@ export const albumStore = {
         url: img.url,
         prompt: img.prompt,
         tags: img.tags,
-        timestamp: img.timestamp
+        timestamp: img.timestamp,
+        parentId: img.parentId,
+        modificationPrompt: img.modificationPrompt
       }));
       localStorage.setItem('comfygen_album', JSON.stringify(fallbackList));
     } catch (e) {
@@ -187,7 +195,9 @@ export const albumStore = {
         url: img.url,
         prompt: img.prompt,
         tags: img.tags,
-        timestamp: img.timestamp
+        timestamp: img.timestamp,
+        parentId: img.parentId,
+        modificationPrompt: img.modificationPrompt
       }));
       localStorage.setItem('comfygen_album', JSON.stringify(fallbackList));
     } catch (e) {}

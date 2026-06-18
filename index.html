@@ -156,6 +156,14 @@
             <label class="settings-label">AI Assistant API URL</label>
             <input type="text" id="setting-ai-url" class="settings-input" placeholder="http://localhost:5001">
           </div>
+          <div class="settings-group">
+            <label class="settings-label">Gelbooru API Key</label>
+            <input type="password" id="setting-gelbooru-api-key" class="settings-input" placeholder="Enter Gelbooru API Key">
+          </div>
+          <div class="settings-group">
+            <label class="settings-label">Gelbooru User ID</label>
+            <input type="text" id="setting-gelbooru-user-id" class="settings-input" placeholder="Enter Gelbooru User ID">
+          </div>
         </div>
       </div>
     </div>
@@ -186,11 +194,11 @@
             <div class="settings-group half">
               <label class="settings-label">Sampler</label>
               <select id="setting-comfyui-sampler" class="settings-input">
-                <option value="er_sde">er_sde (Recommended)</option>
+                <option value="euler">euler (Recommended)</option>
                 <option value="uni_pc">uni_pc (Fast)</option>
                 <option value="dpmpp_2m_sde_gpu">dpmpp_2m_sde_gpu (Creative)</option>
-                <option value="euler_a">euler_a (Soft Details)</option>
-                <option value="euler">euler</option>
+                <option value="euler_ancestral">euler_ancestral (Soft Details)</option>
+                <option value="dpmpp_sde">dpmpp_sde</option>
               </select>
             </div>
             <div class="settings-group half">
@@ -216,6 +224,10 @@
           <div class="settings-group">
             <label class="settings-label">LLLite Model (Img2Img)</label>
             <input type="text" id="setting-comfyui-lllite-name-img2img" class="settings-input" placeholder="anima-lllite-any-test-like-v2.safetensors">
+          </div>
+          <div class="settings-group">
+            <label class="settings-label">Positive Prompt Prefix</label>
+            <textarea id="setting-comfyui-positive-prefix" class="settings-textarea" rows="2">Masterpiece, good quality</textarea>
           </div>
           <div class="settings-group">
             <label class="settings-label">Negative Prompt</label>
@@ -323,10 +335,14 @@
       <div class="mode-tabs-container">
         <button id="tab-mode-simple" class="mode-tab active">Simple</button>
         <button id="tab-mode-advanced" class="mode-tab">Advanced</button>
+        <button id="tab-mode-webref" class="mode-tab">Web Reference</button>
       </div>
 
       <!-- MAIN CREATION INTERFACE (FORM) -->
       <div id="creation-form-container" class="creation-content-wrapper">
+        <!-- Scrollable content area -->
+        <div class="creation-scroll-area">
+
         <!-- Label above the prompt box -->
         <div class="prompt-section-label">What do you want to create?</div>
 
@@ -337,16 +353,36 @@
 
         <!-- ADVANCED MODE MODULAR PANEL -->
         <div id="advanced-modular-panel" class="advanced-panel hidden">
-          <!-- Categories Sidebar tabs -->
+          <!-- Categories Sidebar tabs (Expand button appended by JS) -->
           <div class="tags-categories-bar">
             <!-- Populated via Javascript -->
           </div>
           <!-- Tags sub-grid for active category -->
           <div class="tags-grid-container">
-            <div class="tags-grid-header">Select tags to append:</div>
+            <div class="tags-grid-header">
+              <span>Select tags to append:</span>
+              <button id="btn-toggle-all-subcategories" class="btn-text-action" style="font-size: 10px; font-weight: 600; text-transform: uppercase; display: none;">Expand All</button>
+            </div>
             <div id="category-tags-grid" class="tags-grid">
               <!-- Populated via Javascript -->
             </div>
+          </div>
+        </div>
+
+        <!-- WEB REFERENCE MODULAR PANEL -->
+        <div id="webref-modular-panel" class="advanced-panel hidden">
+          <div class="webref-container" style="padding: 8px 12px; display: flex; gap: 8px; align-items: center; width: 100%; box-sizing: border-box; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 12px; margin-bottom: 16px; transition: border-color 0.2s;" onfocusin="this.style.borderColor='var(--border-accent)'" onfocusout="this.style.borderColor='var(--border-light)'">
+            <input type="text" id="webref-url-input" placeholder="Paste Gelbooru link here..." style="background: transparent; border: none; color: var(--text-primary); font-size: 14px; outline: none; flex: 1; padding: 8px 4px;">
+            <button id="btn-webref-paste" title="Paste from clipboard" style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 8px; transition: background 0.2s, color 0.2s; flex-shrink: 0;" onmouseover="this.style.background='var(--bg-hover)'; this.style.color='var(--text-primary)';" onmouseout="this.style.background='transparent'; this.style.color='var(--text-secondary)';">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+              </svg>
+            </button>
+            <button id="btn-webref-extract" style="background: var(--text-primary); color: var(--bg-secondary); border: none; border-radius: 20px; padding: 8px 16px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0;" onmouseover="this.style.background='var(--text-accent)';" onmouseout="this.style.background='var(--text-primary)';">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <span>Extract Tags</span>
+            </button>
           </div>
         </div>
 
@@ -393,7 +429,9 @@
           </button>
         </div>
 
-        <!-- GENERATE TRIGGER BUTTON -->
+        </div><!-- /creation-scroll-area -->
+
+        <!-- GENERATE TRIGGER BUTTON - Sticky Footer -->
         <div class="creation-actions">
           <div class="split-button-container">
             <button id="btn-surprise-me" class="btn-surprise-left">Surprise me</button>
@@ -442,18 +480,29 @@
           <div class="editor-sidebar-column">
             <div class="editor-sidebar-header">Edit Settings</div>
             
+            <!-- Add artist tag toggle -->
+            <div class="editor-settings-group editor-artist-tag-row">
+              <div class="editor-artist-tag-header">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <label class="editor-settings-label">Add artist tag</label>
+                  <span id="artist-tag-display" class="artist-tag-pill hidden"></span>
+                </div>
+                <label class="lora-toggle-switch">
+                  <input type="checkbox" id="toggle-artist-tag">
+                  <span class="lora-toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
             <!-- Edit Prompt Field -->
             <div class="editor-settings-group">
               <label class="editor-settings-label">Edit Prompt</label>
               <textarea
                 id="editor-prompt-input"
                 class="editor-prompt-textarea"
-                placeholder="Describe what should appear in the painted area... (e.g. red scarf, glowing eyes, fire magic)"
+                placeholder="Describe your idea..."
                 rows="3"
               ></textarea>
-              <div class="editor-tip-text" style="margin-top: 6px;">
-                Leave empty to use the main prompt from the Create panel.
-              </div>
             </div>
 
           <div class="editor-settings-group">
@@ -465,58 +514,100 @@
               </div>
             </div>
 
-            <!-- Brush controls container (only shown in Inpaint mode) -->
             <div id="editor-brush-controls" class="editor-settings-group">
-              <label class="editor-settings-label">Brush Controls</label>
+              <div class="editor-brush-header">
+                <label class="editor-settings-label">Brush Controls</label>
+                <span id="brush-collapse-arrow" class="brush-collapse-arrow collapsed">▼</span>
+              </div>
               <div class="editor-mode-toggle-group" style="margin-bottom: 12px;">
                 <button id="btn-editor-brush-draw" class="editor-toggle-btn active">Draw Mask</button>
                 <button id="btn-editor-brush-sketch" class="editor-toggle-btn">Sketch</button>
               </div>
-              <div class="editor-slider-container">
-                <div class="editor-slider-header">
-                  <span>Brush Size</span>
-                  <span id="editor-brush-size-val">20px</span>
+              <div id="editor-brush-settings-content" class="editor-brush-settings-content collapsed">
+                <div class="editor-slider-container">
+                  <div class="editor-slider-header">
+                    <span>Brush Size</span>
+                    <span id="editor-brush-size-val">20px</span>
+                  </div>
+                  <input type="range" id="input-editor-brush-size" min="5" max="100" step="1" value="20" class="settings-slider-input">
                 </div>
-                <input type="range" id="input-editor-brush-size" min="5" max="100" step="1" value="20" class="settings-slider-input">
-              </div>
 
-              <div id="editor-color-palette" style="display: none; margin-top: 15px;">
-                <label class="editor-settings-label" style="margin-bottom: 8px;">Sketch Color</label>
-                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                  <button class="color-swatch active" data-color="#ff0000" style="background: #ff0000;"></button>
-                  <button class="color-swatch" data-color="#00ff00" style="background: #00ff00;"></button>
-                  <button class="color-swatch" data-color="#0000ff" style="background: #0000ff;"></button>
-                  <button class="color-swatch" data-color="#ffff00" style="background: #ffff00;"></button>
-                  <button class="color-swatch" data-color="#ffffff" style="background: #ffffff;"></button>
-                  <button class="color-swatch" data-color="#000000" style="background: #000000;"></button>
-                  <input type="color" id="input-editor-sketch-color" value="#ff0000" style="border: none; width: 24px; height: 24px; cursor: pointer; padding: 0; background: transparent; border-radius: 4px; overflow: hidden;">
+                <div id="editor-color-palette" style="display: none; margin-top: 15px;">
+                  <label class="editor-settings-label" style="margin-bottom: 8px;">Sketch Color</label>
+                  <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <button class="color-swatch active" data-color="#ff0000" style="background: #ff0000;"></button>
+                    <button class="color-swatch" data-color="#00ff00" style="background: #00ff00;"></button>
+                    <button class="color-swatch" data-color="#0000ff" style="background: #0000ff;"></button>
+                    <button class="color-swatch" data-color="#ffff00" style="background: #ffff00;"></button>
+                    <button class="color-swatch" data-color="#ffffff" style="background: #ffffff;"></button>
+                    <button class="color-swatch" data-color="#000000" style="background: #000000;"></button>
+                    <input type="color" id="input-editor-sketch-color" value="#ff0000" style="border: none; width: 24px; height: 24px; cursor: pointer; padding: 0; background: transparent; border-radius: 4px; overflow: hidden;">
+                  </div>
+                  <div style="margin-top: 12px; display: flex; align-items: center; gap: 6px;">
+                    <input type="checkbox" id="input-editor-enhance-sketch" checked style="cursor: pointer;">
+                    <label for="input-editor-enhance-sketch" style="font-size: 12px; color: var(--text-color); cursor: pointer;">Auto-Enhance Sketch (Blur + Noise)</label>
+                  </div>
                 </div>
-                <div style="margin-top: 12px; display: flex; align-items: center; gap: 6px;">
-                  <input type="checkbox" id="input-editor-enhance-sketch" checked style="cursor: pointer;">
-                  <label for="input-editor-enhance-sketch" style="font-size: 12px; color: var(--text-color); cursor: pointer;">Auto-Enhance Sketch (Blur + Noise)</label>
+
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 12px; text-align: center;">
+                  Right-Click (Hold) to Erase
                 </div>
-              </div>
 
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 12px; text-align: center;">
-                Right-Click (Hold) to Erase
+                <button id="btn-editor-clear-mask" class="btn-secondary-action" style="margin-top: 10px; width: 100%; justify-content: center; font-size: 12px; padding: 10px;">
+                  Clear Active Layer
+                </button>
               </div>
-
-              <button id="btn-editor-clear-mask" class="btn-secondary-action" style="margin-top: 10px; width: 100%; justify-content: center; font-size: 12px; padding: 10px;">
-                Clear Active Layer
-              </button>
             </div>
 
-            <!-- Denoising Strength slider -->
-            <div class="editor-settings-group">
+            <div class="editor-denoise-row editor-settings-group">
               <div class="editor-slider-container">
                 <div class="editor-slider-header">
                   <span>Denoising Strength</span>
-                  <span id="editor-denoise-val">0.75</span>
+                  <span id="editor-denoise-val">0.50</span>
                 </div>
-                <input type="range" id="input-editor-denoise" min="0.0" max="1.0" step="0.05" value="0.75" class="settings-slider-input">
+                <input type="range" id="input-editor-denoise" min="0.0" max="1.0" step="0.05" value="0.50" class="settings-slider-input">
               </div>
-              <div class="editor-tip-text">
-                Higher values mean more significant changes. (For inpainting: 0.7-0.9 recommended; for img2img: 0.4-0.6 recommended).
+            </div>
+
+            <!-- Новый блок для img2img denoise presets -->
+            <div id="img2img-denoise-presets" class="editor-preset-buttons editor-settings-group" style="display: none;">
+              <span class="preset-label">Change Strength:</span>
+              <div class="preset-buttons-group">
+                <button class="preset-btn" data-denoise="0.30" data-mode="img2img">
+                  <span class="preset-name">Low</span>
+                  <span class="preset-desc">Light touch</span>
+                </button>
+                <button class="preset-btn active" data-denoise="0.50" data-mode="img2img">
+                  <span class="preset-name">Medium</span>
+                  <span class="preset-desc">Balanced</span>
+                </button>
+                <button class="preset-btn" data-denoise="0.75" data-mode="img2img">
+                  <span class="preset-name">High</span>
+                  <span class="preset-desc">Strong change</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Edit Pro mode switcher -->
+            <div id="edit-pro-mode-switcher" class="edit-pro-mode-container editor-settings-group" style="display: none;">
+              <div class="preset-label-container">
+                <span class="preset-label">Edit Type</span>
+                <div class="editor-tooltip-icon">
+                  i
+                  <span class="editor-tooltip-text">
+                    <strong>Global:</strong> Describe the full new version of the right side. Example: <em>"same character in dynamic pose, smiling, different outfit"</em>
+                    <br><br>
+                    <strong>Details:</strong> Describe only what to add or refine. Composition stays the same. Example: <em>"add glasses and a hat, jewelry details"</em>
+                  </span>
+                </div>
+              </div>
+              <div class="edit-pro-mode-buttons">
+                <button class="edit-pro-mode-btn active" data-edit-mode="global">
+                  <span class="preset-name">Global</span>
+                </button>
+                <button class="edit-pro-mode-btn" data-edit-mode="details">
+                  <span class="preset-name">Details</span>
+                </button>
               </div>
             </div>
 
@@ -538,6 +629,7 @@
 
       <!-- IMPROVE CONFIRMATION AREA -->
       <div id="improve-confirmation-container" class="creation-content-wrapper hidden">
+        <div class="creation-scroll-area">
         <div class="prompt-section-label">Improved Prompt Proposal</div>
         
         <!-- Improved Prompt Textarea Preview -->
@@ -548,6 +640,7 @@
         <div class="improve-instruction-text">
           AI has enhanced your prompt for better details, lighting, and style composition. You can generate art with it now, or go back to keep editing your original prompt.
         </div>
+        </div><!-- /creation-scroll-area -->
 
         <!-- Actions: Generate vs Back -->
         <div class="creation-actions">
@@ -571,8 +664,12 @@
         <!-- Live Preview Image from KSampler -->
         <img id="generation-live-preview" class="generation-live-preview hidden" alt="Live preview">
         <div class="loader-circle-container">
-          <div class="loader-circle-spinner"></div>
-          <div id="loader-stage-text" class="loader-stage-text">Waiting in ComfyUI queue...</div>
+          <div id="loader-stage-text" class="loader-stage-text">
+            <span class="stage-text-span active">Waiting in ComfyUI queue...</span>
+          </div>
+        </div>
+        <div class="ios-shimmer-bar">
+          <div id="loader-progress-bar" class="ios-shimmer-progress"></div>
         </div>
         <button id="btn-cancel-generation" class="btn-cancel-generation">
           Cancel Generation
@@ -614,6 +711,21 @@
             <span>Save to Album</span>
           </button>
         </div>
+        
+        <!-- Surprise Me Extra Buttons (visible only after surprise generation) -->
+        <div id="post-gen-surprise-actions" class="post-gen-actions-bar surprise-actions hidden" style="margin-top: 10px;">
+          <button id="btn-post-save-generate-surprise" class="post-action-btn regen-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span>Save & Generate</span>
+          </button>
+          <button id="btn-post-surprise-again" class="post-action-btn">
+            <span>Surprise me again</span>
+          </button>
+        </div>
       </div>
 
     </main>
@@ -621,19 +733,26 @@
     <!-- FULLPAGE ALBUM WORKSPACE -->
     <main id="album-workspace" class="floating-panel main-panel hidden">
       <div class="album-workspace-header">
-        <div class="album-header-title-row">
+      <div class="album-header-title-row">
           <span class="album-header-title">Gallery Album</span>
-          <button id="btn-album-random" class="btn-primary-settings btn-album-random">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="random-icon">
-              <!-- Random / Shuffle icon -->
-              <polyline points="16 3 21 3 21 8"></polyline>
-              <line x1="4" y1="20" x2="21" y2="3"></line>
-              <polyline points="21 16 21 21 16 21"></polyline>
-              <line x1="15" y1="15" x2="21" y2="21"></line>
-              <line x1="4" y1="4" x2="9" y2="9"></line>
-            </svg>
-            <span>Random Artwork</span>
-          </button>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <label class="album-group-toggle-wrap" title="Group edited images under originals">
+              <input type="checkbox" id="toggle-group-lineage" class="album-group-toggle-input">
+              <span class="album-group-toggle-slider"></span>
+              <span class="album-group-toggle-label">Group Edits</span>
+            </label>
+            <button id="btn-album-random" class="btn-primary-settings btn-album-random">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="random-icon">
+                <!-- Random / Shuffle icon -->
+                <polyline points="16 3 21 3 21 8"></polyline>
+                <line x1="4" y1="20" x2="21" y2="3"></line>
+                <polyline points="21 16 21 21 16 21"></polyline>
+                <line x1="15" y1="15" x2="21" y2="21"></line>
+                <line x1="4" y1="4" x2="9" y2="9"></line>
+              </svg>
+              <span>Random Artwork</span>
+            </button>
+          </div>
         </div>
         
         <!-- Stats container with Pie chart and legend -->
@@ -760,7 +879,33 @@
       </div>
     </div>
 
+    <!-- Lineage Tree Overlay -->
+    <div id="lineage-tree-overlay" class="lineage-overlay hidden">
+      <div class="lineage-header">
+        <h2 class="lineage-title">Image Lineage Tree</h2>
+        <button class="lightbox-close" id="lineage-close" title="Close Lineage">&times;</button>
+      </div>
+      <div class="lineage-container" id="lineage-container">
+        <!-- SVG Canvas for smooth arrows -->
+        <svg class="lineage-svg-canvas" id="lineage-svg-canvas"></svg>
+        <!-- HTML nodes for images and prompts will be added here -->
+        <div class="lineage-nodes-wrapper" id="lineage-nodes-wrapper"></div>
+      </div>
+      <div class="lineage-controls">
+        <button id="btn-lineage-zoom-out" class="lightbox-btn" title="Zoom Out">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button id="btn-lineage-zoom-reset" class="lightbox-btn reset" title="Reset Zoom">100%</button>
+        <button id="btn-lineage-zoom-in" class="lightbox-btn" title="Zoom In">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+
   </div>
+
+  <!-- iOS-style blur backdrop для drawer'ов -->
+  <div id="drawer-backdrop" class="drawer-backdrop"></div>
 
   <!-- Main Entry Point Module -->
   <script type="module" src="/src/main.js"></script>

@@ -4,6 +4,7 @@ import { tagsDatabase } from './data/tags.js';
 import { generateImageComfyUI, clearComfyUIMemory, getAvailableLoras } from './services/comfyui-service.js';
 import { aiService, parseSuggestions, parseMarkdown } from './services/ai-service.js';
 import { initLightbox } from './utils/lightbox.js';
+import { getTagsFromGelbooruUrl } from './services/gelbooru-api.js';
 
 // ─── Application State ─────────────────────────────────────────────
 let appState = {
@@ -20,16 +21,23 @@ let appState = {
   generationCount: 0, // Track successful generations for VRAM clearing
   lastSurpriseTags: [], // Track tags added by the last "Surprise me" click
   lastGenerationMode: null, // Track if last generation was 'creation' or 'editor'
+  lastGenerationWasSurprise: false,
   
   // Editor State
   editorActive: false,
   editorSourceUrl: null,
   editorOriginalBlob: null,
+  editorSourceImageId: null, // Track lineage
   editorMode: 'inpaint', // 'inpaint' or 'img2img'
+  editProMode: 'global',  // 'global' or 'details'
+  editorOriginalPrompt: '',
+  artistTagToggle: false,
+  artistTagValue: null,
+  brushSettingsCollapsed: true,
   brushMode: 'draw', // 'draw' or 'sketch'
   sketchColor: '#ff0000',
   brushSize: 20,
-  denoise: 0.75,
+  denoise: 0.60,
   isDrawing: false,
 
   // LoRA State
@@ -50,14 +58,109 @@ function showToast(message, type = 'info') {
 
   // Auto remove toast after 4s
   setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateY(15px)';
-    toast.style.transition = 'all 0.4s ease';
-    setTimeout(() => toast.remove(), 400);
+    toast.style.animation = 'toastExit var(--ios-duration-normal) var(--ios-ease-accelerate) forwards';
+    setTimeout(() => toast.remove(), 350);
   }, 4000);
 }
 
-// ─── Flying Save Animation ─────────────────────────────────────────
+function setDrawerBackdrop(active) {
+  const backdrop = document.getElementById('drawer-backdrop');
+  if (!backdrop) return;
+  
+  if (active) {
+    backdrop.classList.add('active');
+  } else {
+    backdrop.classList.remove('active');
+  }
+}
+
+let loaderActiveTimeout = null;
+let loaderExitTimeout = null;
+
+function smoothUpdateLoaderText(text) {
+  const stageTextContainer = document.getElementById('loader-stage-text');
+  if (!stageTextContainer) return;
+
+  // Find the currently visible span
+  const currentSpan = stageTextContainer.querySelector('.stage-text-span.active') ||
+                      stageTextContainer.querySelector('.stage-text-span.stage-text-entering');
+
+  // ── Progress bar ──────────────────────────────────────────────────
+  let percent = 0;
+  const match = text.match(/Step\s+(\d+)\s*\/\s*(\d+)/i);
+  if (match) {
+    const val = parseInt(match[1], 10), max = parseInt(match[2], 10);
+    if (max > 0) percent = (val / max) * 100;
+  } else if (text === 'Image ready!') {
+    percent = 100;
+  } else if (/Decoding|Saving image|Finalizing/.test(text)) {
+    percent = 95;
+  } else if (text === 'Running KSampler...') {
+    percent = 5;
+  }
+  const progressBar = document.getElementById('loader-progress-bar');
+  if (progressBar) progressBar.style.width = `${percent}%`;
+
+  if (currentSpan && currentSpan.textContent === text) return;
+
+  // ── Step-to-step: update in-place, no animation ───────────────────
+  const stepRegex = /^Generating:\s*Step\s+\d+\/\d+$/i;
+  if (currentSpan && stepRegex.test(currentSpan.textContent) && stepRegex.test(text)) {
+    currentSpan.textContent = text;
+    return;
+  }
+
+  // ── Cancel pending timers ─────────────────────────────────────────
+  clearTimeout(loaderActiveTimeout);
+  clearTimeout(loaderExitTimeout);
+
+  // Remove any stale animating spans
+  stageTextContainer.querySelectorAll('.stage-text-span.stage-text-exiting').forEach(el => el.remove());
+
+  // ── 1. Snapshot old span → switch to exiting state ───────────────
+  if (currentSpan) {
+    currentSpan.className = 'stage-text-span stage-text-exiting';
+    // Set initial wipe position (matches @property initial-value: -20%)
+    currentSpan.style.setProperty('--loader-wipe-pos', '-20%');
+  }
+
+  // ── 2. Create new span in entering state ──────────────────────────
+  const newSpan = document.createElement('span');
+  newSpan.className = 'stage-text-span stage-text-entering';
+  newSpan.textContent = text;
+  // Set initial wipe position explicitly so transition has a from-value
+  newSpan.style.setProperty('--loader-wipe-pos', '-35%');
+  stageTextContainer.appendChild(newSpan);
+
+  // ── 3. On next frame: animate both simultaneously ─────────────────
+  // The old span exits immediately; the new span enters after a short
+  // stagger delay so there is a visible gap of empty space between them.
+  const ENTER_DELAY = 160; // ms — gap duration between exit start and enter start
+
+  requestAnimationFrame(() => {
+    // Force the browser to register both initial states
+    newSpan.getBoundingClientRect();
+
+    // Old span: starts exiting immediately
+    if (currentSpan) {
+      currentSpan.style.setProperty('--loader-wipe-pos', '100%');
+      loaderExitTimeout = setTimeout(() => currentSpan.remove(), 700);
+    }
+
+    // New span: starts entering after ENTER_DELAY
+    // During this delay the old text is fading out and there is empty space
+    setTimeout(() => {
+      newSpan.style.setProperty('--loader-wipe-pos', '100%');
+    }, ENTER_DELAY);
+
+    // Settle to stable .active state after enter animation completes
+    loaderActiveTimeout = setTimeout(() => {
+      newSpan.className = 'stage-text-span active';
+      newSpan.style.removeProperty('--loader-wipe-pos');
+    }, ENTER_DELAY + 580);
+  });
+}
+
 function playFlyToAlbumAnimation(imageElement, targetElement, callback) {
   if (!imageElement || !targetElement) {
     if (callback) callback();
@@ -70,70 +173,110 @@ function playFlyToAlbumAnimation(imageElement, targetElement, callback) {
   const isAlbumOpen = document.getElementById('album-drawer').classList.contains('open');
   const destWidth = isAlbumOpen ? targetRect.width : 36;
   const destHeight = isAlbumOpen ? targetRect.height : 36;
-  const destLeft = targetRect.left + (targetRect.width / 2) - destWidth / 2;
-  const destTop  = targetRect.top  + (targetRect.height / 2) - destHeight / 2;
+  
+  // position calculations for transform translate
+  const destX = targetRect.left + (targetRect.width / 2) - destWidth / 2;
+  const destY = targetRect.top + (targetRect.height / 2) - destHeight / 2;
 
-  // Create a fixed overlay duplicate of the image at exactly the source position/size
+  // Create overlay clone
   const clone = document.createElement('img');
   clone.src = imageElement.src;
   clone.className = 'flying-art-clone';
 
-  // Set INITIAL position matching the source image exactly (no transition yet)
+  // Set initial position via transform (fixed coordinate space)
   clone.style.transition = 'none';
-  clone.style.left   = `${srcRect.left}px`;
-  clone.style.top    = `${srcRect.top}px`;
-  clone.style.width  = `${srcRect.width}px`;
+  clone.style.left = '0px';
+  clone.style.top = '0px';
+  clone.style.transform = `translate(${srcRect.left}px, ${srcRect.top}px)`;
+  clone.style.width = `${srcRect.width}px`;
   clone.style.height = `${srcRect.height}px`;
   clone.style.opacity = '1';
   clone.style.borderRadius = '12px';
 
   document.body.appendChild(clone);
 
-  // Hide the original image immediately so only the clone is visible/moving
   imageElement.style.opacity = '0';
   imageElement.style.pointerEvents = 'none';
 
-  // Allow browser to paint the clone at initial position before we animate
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      // Now enable transition and move to destination
       clone.style.transition = '';
-      clone.style.left        = `${destLeft}px`;
-      clone.style.top         = `${destTop}px`;
-      clone.style.width       = `${destWidth}px`;
-      clone.style.height      = `${destHeight}px`;
-      clone.style.opacity     = isAlbumOpen ? '1' : '0';
+      // Move using transform translate
+      clone.style.transform = `translate(${destX}px, ${destY}px)`;
+      clone.style.width = `${destWidth}px`;
+      clone.style.height = `${destHeight}px`;
+      clone.style.opacity = isAlbumOpen ? '1' : '0';
       clone.style.borderRadius = isAlbumOpen ? '8px' : '50%';
     });
   });
 
-  // Listen for the 'left' transition to finish (guaranteed to change from center to side)
   let callbackFired = false;
-  function onTransitionEnd(e) {
-    if (e.propertyName !== 'left') return;
-    clone.removeEventListener('transitionend', onTransitionEnd);
+  let transitionEnded = false;
+  let targetImgDecoded = false;
+
+  function finishAnimation() {
+    if (!transitionEnded || !targetImgDecoded) return;
     if (!callbackFired) {
       callbackFired = true;
       clone.remove();
-
-      // If target card was hidden for the animation, reveal it now instantly without transition
+      
       if (isAlbumOpen && targetElement.classList.contains('just-added-flying')) {
         targetElement.style.transition = 'none';
         targetElement.classList.remove('just-added-flying');
-        targetElement.offsetHeight; // force layout reflow
+        targetElement.offsetHeight; // force reflow
         targetElement.style.transition = '';
       }
-
-      // Restore original image styles for future previews
+      
       imageElement.style.opacity = '';
       imageElement.style.pointerEvents = '';
-
+      
       if (callback) callback();
     }
   }
+
+  // Listen to transform transition end
+  function onTransitionEnd(e) {
+    if (e.propertyName !== 'transform') return;
+    clone.removeEventListener('transitionend', onTransitionEnd);
+    transitionEnded = true;
+    finishAnimation();
+  }
   clone.addEventListener('transitionend', onTransitionEnd);
 
-  // Fallback: if transition somehow doesn't fire (e.g., reduced-motion), cleanup anyway
+  // Wait for target image to decode
+  const targetImg = targetElement.querySelector('img');
+  if (isAlbumOpen && targetImg) {
+    const checkDecode = () => {
+      if (typeof targetImg.decode === 'function') {
+        targetImg.decode()
+          .then(() => {
+            targetImgDecoded = true;
+            finishAnimation();
+          })
+          .catch(() => {
+            targetImgDecoded = true;
+            finishAnimation();
+          });
+      } else {
+        targetImgDecoded = true;
+        finishAnimation();
+      }
+    };
+
+    if (targetImg.complete) {
+      checkDecode();
+    } else {
+      targetImg.addEventListener('load', checkDecode, { once: true });
+      targetImg.addEventListener('error', () => {
+        targetImgDecoded = true;
+        finishAnimation();
+      }, { once: true });
+    }
+  } else {
+    targetImgDecoded = true;
+  }
+
+  // Fallback cleanup at 700ms (500ms anim + 200ms buffer)
   setTimeout(() => {
     if (!callbackFired) {
       callbackFired = true;
@@ -148,7 +291,7 @@ function playFlyToAlbumAnimation(imageElement, targetElement, callback) {
       imageElement.style.pointerEvents = '';
       if (callback) callback();
     }
-  }, 1200);
+  }, 700);
 }
 
 // ─── Morphing Preview Animation ────────────────────────────────────
@@ -159,51 +302,37 @@ function playMorphPreviewAnimation(previewImg, targetImg, changeState, callback)
     return;
   }
 
-  // 1. Measure starting position of the live preview element
   const srcRect = previewImg.getBoundingClientRect();
-
-  // 2. Measure the TRUE destination position of the final image by temporarily applying target layout
   const workspace = document.getElementById('main-workspace');
   const loader = document.getElementById('generation-loader');
   const previewArea = document.getElementById('art-preview-area');
 
-  // Save original transition style
   const origWorkspaceTransition = workspace.style.transition;
-  
-  // Disable transition temporarily
   workspace.style.transition = 'none';
   
-  // Apply final target state to get layout
   workspace.classList.remove('generating');
   loader.classList.add('hidden');
   previewArea.classList.remove('hidden');
   
-  // Force layout reflow
   workspace.offsetHeight;
   
-  // Measure the final destination coordinates
   const destRect = targetImg.getBoundingClientRect();
   
-  // Revert back to the initial state immediately
   workspace.classList.add('generating');
   loader.classList.remove('hidden');
   previewArea.classList.add('hidden');
   
-  // Force layout reflow to apply the reversion
   workspace.offsetHeight;
-  
-  // Restore transitions
   workspace.style.transition = origWorkspaceTransition;
 
-  // 3. Create a morphing clone to animate
   const clone = document.createElement('img');
   clone.src = targetImg.src || previewImg.src;
   clone.className = 'morphing-preview-clone';
 
-  // Position clone at start rect (no transition yet)
   clone.style.transition = 'none';
-  clone.style.left = `${srcRect.left}px`;
-  clone.style.top = `${srcRect.top}px`;
+  clone.style.left = '0px';
+  clone.style.top = '0px';
+  clone.style.transform = `translate(${srcRect.left}px, ${srcRect.top}px)`;
   clone.style.width = `${srcRect.width}px`;
   clone.style.height = `${srcRect.height}px`;
   clone.style.opacity = '1';
@@ -211,55 +340,40 @@ function playMorphPreviewAnimation(previewImg, targetImg, changeState, callback)
 
   document.body.appendChild(clone);
 
-  // Hide the original preview image
   previewImg.style.opacity = '0';
 
-  // 4. Perform the actual permanent layout change
   if (changeState) changeState();
 
-  // Hide the target image during the animation
   targetImg.style.opacity = '0';
 
-  // 5. Animate the clone to destination
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      clone.style.transition = ''; // Restore CSS transition
-      clone.style.left = `${destRect.left}px`;
-      clone.style.top = `${destRect.top}px`;
+      clone.style.transition = '';
+      clone.style.transform = `translate(${destRect.left}px, ${destRect.top}px)`;
       clone.style.width = `${destRect.width}px`;
       clone.style.height = `${destRect.height}px`;
       clone.style.borderRadius = '12px';
     });
   });
 
-  // 6. Listen for the transition to finish
   let callbackFired = false;
-  function onTransitionEnd(e) {
-    if (e.propertyName !== 'left' && e.propertyName !== 'width') return;
-    clone.removeEventListener('transitionend', onTransitionEnd);
-    if (!callbackFired) {
-      callbackFired = true;
-      clone.remove();
-
-      // Restore original opacity of elements
-      targetImg.style.opacity = '';
-      previewImg.style.opacity = '';
-
-      if (callback) callback();
+  const finishAnimation = () => {
+    if (callbackFired) return;
+    callbackFired = true;
+    clone.remove();
+    targetImg.style.opacity = '';
+    previewImg.style.opacity = '';
+    if (callback) callback();
+  };
+  
+  clone.addEventListener('transitionend', (e) => {
+    if (e.propertyName === 'transform' || e.propertyName === 'width') {
+      finishAnimation();
     }
-  }
-  clone.addEventListener('transitionend', onTransitionEnd);
-
-  // Fallback cleanup
-  setTimeout(() => {
-    if (!callbackFired) {
-      callbackFired = true;
-      clone.remove();
-      targetImg.style.opacity = '';
-      previewImg.style.opacity = '';
-      if (callback) callback();
-    }
-  }, 800);
+  });
+  
+  // Safety net: 700ms (500ms animation + 200ms buffer)
+  setTimeout(finishAnimation, 700);
 }
 
 // ─── DOM Binding & Page Initialization ─────────────────────────────
@@ -306,6 +420,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // Bind Toggle All Subcategories Button
+  const btnToggleAll = document.getElementById('btn-toggle-all-subcategories');
+  if (btnToggleAll) {
+    btnToggleAll.addEventListener('click', () => {
+      const grid = document.getElementById('category-tags-grid');
+      if (!grid) return;
+      const containers = grid.querySelectorAll('.subcategory-tags-container');
+      const headers = grid.querySelectorAll('.subcategory-header');
+      
+      let hasExpanded = false;
+      containers.forEach(c => {
+        if (!c.classList.contains('collapsed')) {
+          hasExpanded = true;
+        }
+      });
+      
+      const shouldCollapse = hasExpanded;
+      
+      const tags = tagsDatabase.getCategoryTags(appState.activeCategory);
+      const subnames = new Set();
+      tags.forEach(item => {
+        if (item.subcategory && item.subcategory.trim()) {
+          subnames.add(item.subcategory.trim());
+        }
+      });
+      
+      subnames.forEach(subName => {
+        const stateKey = `${appState.activeCategory}_${subName}`;
+        appState.collapsedSubcategories[stateKey] = shouldCollapse;
+      });
+      
+      containers.forEach(c => {
+        if (shouldCollapse) {
+          c.classList.add('collapsed');
+        } else {
+          c.classList.remove('collapsed');
+        }
+      });
+      headers.forEach(h => {
+        if (shouldCollapse) {
+          h.classList.add('collapsed');
+        } else {
+          h.classList.remove('collapsed');
+        }
+      });
+      
+      btnToggleAll.textContent = shouldCollapse ? 'Expand All' : 'Collapse All';
+    });
+  }
+
   // Click outside to close custom dropdowns
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.lora-dropdown')) {
@@ -342,14 +506,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnToggleAlbum = document.getElementById('btn-toggle-album');
   const btnCloseAlbum = document.getElementById('btn-close-album');
 
+  // Click on backdrop — close all active drawers
+  const backdrop = document.getElementById('drawer-backdrop');
+  if (backdrop) {
+    backdrop.addEventListener('click', () => {
+      // Close all open drawers (except album-drawer)
+      document.querySelectorAll('.floating-drawer.open').forEach(d => {
+        if (d.id !== 'album-drawer') {
+          d.classList.remove('open');
+        }
+      });
+      document.querySelectorAll('.settings-sub-panel.open').forEach(p => {
+        p.classList.remove('open');
+      });
+      document.querySelectorAll('.settings-nav-btn').forEach(b => {
+        b.classList.remove('active');
+      });
+      setDrawerBackdrop(false);
+    });
+  }
+
   // Left Menu Open/Close
   btnToggleLeftMenu.addEventListener('click', () => {
     leftMenuDrawer.classList.add('open');
+    setDrawerBackdrop(true);
   });
 
   btnCloseLeftMenu.addEventListener('click', (e) => {
     e.stopPropagation();
     leftMenuDrawer.classList.remove('open');
+    setDrawerBackdrop(false);
     // Also close settings if menu closes
     settingsDrawer.classList.remove('open');
     document.querySelectorAll('.settings-sub-panel').forEach(p => p.classList.remove('open'));
@@ -381,11 +567,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Left Menu Action buttons bindings
   document.getElementById('menu-btn-create').addEventListener('click', () => {
     leftMenuDrawer.classList.remove('open');
+    setDrawerBackdrop(false);
     window.switchView('create');
   });
 
   document.getElementById('menu-btn-album').addEventListener('click', () => {
     leftMenuDrawer.classList.remove('open');
+    setDrawerBackdrop(false);
     window.switchView('album');
   });
 
@@ -393,10 +581,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   menuBtnSettings.addEventListener('click', () => {
     initSettingsForm();
     settingsDrawer.classList.add('open');
+    setDrawerBackdrop(true);
   });
 
   btnCloseSettings.addEventListener('click', () => {
     settingsDrawer.classList.remove('open');
+    setDrawerBackdrop(false);
     // Close all sub-panels
     document.querySelectorAll('.settings-sub-panel').forEach(p => p.classList.remove('open'));
     document.querySelectorAll('.settings-nav-btn').forEach(b => b.classList.remove('active'));
@@ -441,11 +631,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Help Chat Open/Close
   btnToggleHelp.addEventListener('click', () => {
     helpDrawer.classList.add('open');
+    setDrawerBackdrop(true);
   });
 
   btnCloseHelp.addEventListener('click', (e) => {
     e.stopPropagation();
     helpDrawer.classList.remove('open');
+    setDrawerBackdrop(false);
   });
 
   // Album Open/Close
@@ -459,25 +651,118 @@ document.addEventListener('DOMContentLoaded', async () => {
     albumDrawer.classList.remove('open');
   });
 
-  // 2. Tabs Bindings (Simple vs Advanced)
+  // Helper to toggle fields when Web Reference tab is active/inactive
+  function toggleWorkspaceFieldsForWebref(hide) {
+    const selectors = [
+      '.prompt-section-label',
+      '.prompt-input-container',
+      '.prompt-preview-container',
+      '.image-size-container',
+      '#loras-wrapper',
+      '.creation-actions'
+    ];
+    selectors.forEach(selector => {
+      const el = document.querySelector(selector);
+      if (el) {
+        if (hide) {
+          el.classList.add('hidden');
+        } else {
+          el.classList.remove('hidden');
+        }
+      }
+    });
+  }
+
+  // 2. Tabs Bindings (Simple vs Advanced vs Web Reference)
   const tabSimple = document.getElementById('tab-mode-simple');
   const tabAdvanced = document.getElementById('tab-mode-advanced');
+  const tabWebref = document.getElementById('tab-mode-webref');
   const advancedPanel = document.getElementById('advanced-modular-panel');
+  const webrefPanel = document.getElementById('webref-modular-panel');
 
   tabSimple.addEventListener('click', () => {
     appState.activeMode = 'simple';
     tabSimple.classList.add('active');
     tabAdvanced.classList.remove('active');
+    if (tabWebref) tabWebref.classList.remove('active');
     advancedPanel.classList.add('hidden');
+    if (webrefPanel) webrefPanel.classList.add('hidden');
+    toggleWorkspaceFieldsForWebref(false);
   });
 
   tabAdvanced.addEventListener('click', () => {
     appState.activeMode = 'advanced';
     tabAdvanced.classList.add('active');
     tabSimple.classList.remove('active');
+    if (tabWebref) tabWebref.classList.remove('active');
     advancedPanel.classList.remove('hidden');
+    if (webrefPanel) webrefPanel.classList.add('hidden');
     renderCategoryTags();
+    toggleWorkspaceFieldsForWebref(false);
   });
+
+  if (tabWebref && webrefPanel) {
+    tabWebref.addEventListener('click', () => {
+      appState.activeMode = 'webref';
+      tabWebref.classList.add('active');
+      tabSimple.classList.remove('active');
+      tabAdvanced.classList.remove('active');
+      advancedPanel.classList.add('hidden');
+      webrefPanel.classList.remove('hidden');
+      toggleWorkspaceFieldsForWebref(true);
+    });
+  }
+
+  // Web Reference Extract functionality
+  const btnWebrefPaste = document.getElementById('btn-webref-paste');
+  const btnWebrefExtract = document.getElementById('btn-webref-extract');
+  const inputWebrefUrl = document.getElementById('webref-url-input');
+
+  if (btnWebrefPaste) {
+    btnWebrefPaste.addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) inputWebrefUrl.value = text;
+      } catch (err) {
+        showToast('Failed to read clipboard', 'error');
+      }
+    });
+  }
+
+  if (btnWebrefExtract) {
+    btnWebrefExtract.addEventListener('click', async () => {
+      const url = inputWebrefUrl.value.trim();
+      if (!url) {
+        showToast('Please enter a valid URL', 'warning');
+        return;
+      }
+      
+      btnWebrefExtract.disabled = true;
+      const originalHtml = btnWebrefExtract.innerHTML;
+      btnWebrefExtract.innerHTML = '<span>Extracting...</span>';
+      
+      try {
+        const tags = await getTagsFromGelbooruUrl(url);
+        if (tags) {
+          const promptInput = document.getElementById('prompt-text-input');
+          if (promptInput) {
+            // Append the tags
+            const currentPrompt = promptInput.value.trim();
+            promptInput.value = currentPrompt ? currentPrompt + ', ' + tags : tags;
+          }
+          showToast('Tags successfully extracted!', 'success');
+          // Switch to simple mode
+          tabSimple.click();
+        }
+      } catch (err) {
+        showToast('Failed to extract tags: ' + err.message, 'error');
+        console.error(err);
+      } finally {
+        btnWebrefExtract.innerHTML = originalHtml;
+        btnWebrefExtract.disabled = false;
+      }
+    });
+  }
 
   // 3. Clear tags button
   document.getElementById('btn-clear-tags').addEventListener('click', () => {
@@ -495,7 +780,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 4. Generate Art Click
   const btnGenerate = document.getElementById('btn-generate');
-  btnGenerate.addEventListener('click', startImageGeneration);
+  btnGenerate.addEventListener('click', () => {
+    appState.lastGenerationWasSurprise = false;
+    startImageGeneration();
+  });
 
   const btnImprove = document.getElementById('btn-improve-prompt');
   if (btnImprove) {
@@ -552,6 +840,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnPostRegen = document.getElementById('btn-post-regenerate');
   const btnPostDelete = document.getElementById('btn-post-delete');
   const btnPostSave = document.getElementById('btn-post-save');
+  const btnPostSaveGenSurprise = document.getElementById('btn-post-save-generate-surprise');
+  const btnPostSurpriseAgain = document.getElementById('btn-post-surprise-again');
+
+  if (btnPostSaveGenSurprise) {
+    btnPostSaveGenSurprise.addEventListener('click', async () => {
+      if (!appState.generatedImageUrl) return;
+      btnPostSaveGenSurprise.disabled = true;
+      const originalText = btnPostSaveGenSurprise.innerHTML;
+      btnPostSaveGenSurprise.innerHTML = '<span>Saving...</span>';
+      try {
+        const finalPrompt = getFinalPrompt();
+        await albumStore.save(appState.generatedImageUrl, finalPrompt, appState.activeTags, appState.editorSourceImageId, null);
+        showToast('Saved to Album!', 'success');
+        appState.lastGenerationWasSurprise = true;
+        startImageGeneration();
+      } catch (err) {
+        showToast('Failed to save image', 'error');
+      } finally {
+        btnPostSaveGenSurprise.innerHTML = originalText;
+        btnPostSaveGenSurprise.disabled = false;
+      }
+    });
+  }
+
+  if (btnPostSurpriseAgain) {
+    btnPostSurpriseAgain.addEventListener('click', () => {
+      const btnSurprise = document.getElementById('btn-surprise-me');
+      if (btnSurprise) btnSurprise.click();
+    });
+  }
 
   btnPostDelete.addEventListener('click', () => {
     showToast('Image discarded');
@@ -586,7 +904,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnPostSave.innerHTML = '<span>Saving...</span>';
 
     try {
-      const savedImg = await albumStore.save(appState.generatedImageUrl, finalPrompt, appState.activeTags);
+      const modPrompt = appState.lastGenerationMode === 'editor' ? appState.lastEditPrompt : null;
+      const savedImg = await albumStore.save(appState.generatedImageUrl, finalPrompt, appState.activeTags, appState.editorSourceImageId, modPrompt);
       showToast('Saved to Album!', 'success');
 
       // Get animated coordinates
@@ -637,9 +956,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const currentSettings = settingsStore.get();
     const width = currentSettings.comfyui_width || 832;
     const height = currentSettings.comfyui_height || 1216;
+    const posPrefix = document.getElementById('setting-comfyui-positive-prefix').value.trim();
     const neg = document.getElementById('setting-comfyui-negative').value.trim();
     const inst = document.getElementById('setting-ai-instructions').value.trim();
     const freeMemoryInterval = parseInt(document.getElementById('setting-free-memory-interval').value) ?? 3;
+    const gelKey = document.getElementById('setting-gelbooru-api-key')?.value.trim() || '';
+    const gelUid = document.getElementById('setting-gelbooru-user-id')?.value.trim() || '';
 
     settingsStore.save({
       comfyui_url: comUrl,
@@ -653,9 +975,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       comfyui_lllite_strength: llliteStrength,
       comfyui_width: width,
       comfyui_height: height,
+      comfyui_positive_prompt_prefix: posPrefix,
       comfyui_negative_prompt: neg,
       comfyui_free_memory_interval: freeMemoryInterval,
-      ai_instructions: inst
+      ai_instructions: inst,
+      gelbooru_api_key: gelKey,
+      gelbooru_user_id: gelUid
     });
 
     showToast('Configuration saved', 'success');
@@ -717,9 +1042,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Post-generation edit button click
   const btnPostEdit = document.getElementById('btn-post-edit');
   if (btnPostEdit) {
-    btnPostEdit.addEventListener('click', () => {
-      if (appState.generatedImageUrl) {
-        enterEditorMode(appState.generatedImageUrl, getFinalPrompt(), appState.activeTags);
+    btnPostEdit.addEventListener('click', async () => {
+      if (!appState.generatedImageUrl) return;
+
+      btnPostEdit.disabled = true;
+      const originalText = btnPostEdit.innerHTML;
+      btnPostEdit.innerHTML = '<span>Saving...</span>';
+
+      try {
+        const finalPrompt = getFinalPrompt();
+        const modPrompt = appState.lastGenerationMode === 'editor' ? appState.lastEditPrompt : null;
+        const savedImg = await albumStore.save(appState.generatedImageUrl, finalPrompt, appState.activeTags, appState.editorSourceImageId, modPrompt);
+        showToast('Saved to Album!', 'success');
+
+        renderGalleryList();
+        if (window.renderAlbumWorkspace) window.renderAlbumWorkspace();
+
+        enterEditorMode(savedImg.url, savedImg.prompt, savedImg.tags, savedImg.id);
+      } catch (err) {
+        showToast('Failed to save image to album', 'error');
+        console.error(err);
+      } finally {
+        btnPostEdit.innerHTML = originalText;
+        btnPostEdit.disabled = false;
       }
     });
   }
@@ -745,6 +1090,11 @@ function renderAdvancedCategories() {
   if (!bar) return;
 
   bar.innerHTML = '';
+
+  // Inner scrollable container for the category tab buttons
+  const tabsScroll = document.createElement('div');
+  tabsScroll.className = 'category-tabs-scroll';
+
   const categories = tagsDatabase.getAllCategories();
   
   for (const key in categories) {
@@ -760,8 +1110,28 @@ function renderAdvancedCategories() {
       renderCategoryTags();
     });
 
-    bar.appendChild(btn);
+    tabsScroll.appendChild(btn);
   }
+
+  bar.appendChild(tabsScroll);
+
+  // Expand/Collapse button — direct child of bar, NOT inside the scrollable area
+  const advancedPanel = document.getElementById('advanced-modular-panel');
+  const isExpanded = advancedPanel && advancedPanel.classList.contains('expanded');
+  const expandBtn = document.createElement('button');
+  expandBtn.id = 'btn-expand-tags';
+  expandBtn.className = 'expand-tab-btn';
+  expandBtn.textContent = isExpanded ? 'Collapse ▴' : 'Expand ▾';
+  expandBtn.title = isExpanded ? 'Collapse tags panel' : 'Expand tags panel';
+  expandBtn.addEventListener('click', () => {
+    if (advancedPanel) {
+      advancedPanel.classList.toggle('expanded');
+      const nowExpanded = advancedPanel.classList.contains('expanded');
+      expandBtn.textContent = nowExpanded ? 'Collapse ▴' : 'Expand ▾';
+      expandBtn.title = nowExpanded ? 'Collapse tags panel' : 'Expand tags panel';
+    }
+  });
+  bar.appendChild(expandBtn);
 }
 
 function renderCategoryTags() {
@@ -787,6 +1157,27 @@ function renderCategoryTags() {
     }
   });
 
+  // Update Toggle All Button text and visibility
+  const btnToggleAll = document.getElementById('btn-toggle-all-subcategories');
+  if (btnToggleAll) {
+    const hasSubcategories = Object.keys(subcategoryGroups).length > 0;
+    if (!hasSubcategories) {
+      btnToggleAll.style.display = 'none';
+    } else {
+      btnToggleAll.style.display = 'inline-block';
+      let hasExpanded = false;
+      for (const subName in subcategoryGroups) {
+        const stateKey = `${appState.activeCategory}_${subName}`;
+        const isCollapsed = appState.collapsedSubcategories[stateKey] !== false;
+        if (!isCollapsed) {
+          hasExpanded = true;
+          break;
+        }
+      }
+      btnToggleAll.textContent = hasExpanded ? 'Collapse All' : 'Expand All';
+    }
+  }
+
   // Helper to create tag element
   function createTagEl(item) {
     const isSelected = appState.activeTags.includes(item.tag);
@@ -794,6 +1185,7 @@ function renderCategoryTags() {
     
     const el = document.createElement('div');
     el.className = `grid-tag-item ${isSelected ? 'selected' : ''}`;
+    el.dataset.tagValue = item.tag;
     
     let tooltip = item.name || item.tag;
     if (item.description) {
@@ -826,7 +1218,7 @@ function renderCategoryTags() {
   // 2. Render Subcategories
   for (const subName in subcategoryGroups) {
     const stateKey = `${appState.activeCategory}_${subName}`;
-    const isCollapsed = !!appState.collapsedSubcategories[stateKey];
+    const isCollapsed = appState.collapsedSubcategories[stateKey] !== false; // collapsed by default!
 
     // Create Header
     const header = document.createElement('div');
@@ -855,6 +1247,18 @@ function renderCategoryTags() {
         tagsContainer.classList.add('collapsed');
         header.classList.add('collapsed');
         appState.collapsedSubcategories[stateKey] = true;
+      }
+
+      // Update toggle all button text
+      if (btnToggleAll) {
+        let hasExpanded = false;
+        const containers = grid.querySelectorAll('.subcategory-tags-container');
+        containers.forEach(c => {
+          if (!c.classList.contains('collapsed')) {
+            hasExpanded = true;
+          }
+        });
+        btnToggleAll.textContent = hasExpanded ? 'Collapse All' : 'Expand All';
       }
     });
 
@@ -921,7 +1325,21 @@ function togglePromptTag(tagString) {
     removeActiveTag(tagString);
   }
   renderActiveTagsChips();
-  renderCategoryTags(); // refresh highlights
+  updateCategoryTagsHighlights();
+}
+
+function updateCategoryTagsHighlights() {
+  const grid = document.getElementById('category-tags-grid');
+  if (!grid) return;
+  const tagItems = grid.querySelectorAll('.grid-tag-item');
+  tagItems.forEach(el => {
+    const tag = el.dataset.tagValue;
+    if (appState.activeTags.includes(tag)) {
+      el.classList.add('selected');
+    } else {
+      el.classList.remove('selected');
+    }
+  });
 }
 
 function renderActiveTagsChips() {
@@ -984,7 +1402,9 @@ function initSettingsForm() {
   document.getElementById('setting-comfyui-lllite-strength').value = settings.comfyui_lllite_strength ?? 1.0;
   const llliteImg2ImgEl = document.getElementById('setting-comfyui-lllite-name-img2img');
   if (llliteImg2ImgEl) llliteImg2ImgEl.value = settings.comfyui_lllite_name_img2img || '';
-  document.getElementById('setting-comfyui-negative').value = settings.comfyui_negative_prompt;
+  const posPrefixEl = document.getElementById('setting-comfyui-positive-prefix');
+  if (posPrefixEl) posPrefixEl.value = settings.comfyui_positive_prompt_prefix !== undefined ? settings.comfyui_positive_prompt_prefix : 'Masterpiece, good quality';
+  document.getElementById('setting-comfyui-negative').value = settings.comfyui_negative_prompt || 'lowres, bad anatomy, worst quality, blurry, watermark';
   
   const freeMemInterval = settings.comfyui_free_memory_interval ?? 3;
   const slider = document.getElementById('setting-free-memory-interval');
@@ -996,6 +1416,15 @@ function initSettingsForm() {
   const aiInstEl = document.getElementById('setting-ai-instructions');
   if (aiInstEl) {
     aiInstEl.value = settings.ai_instructions || 'You are an expert prompt engineer. Help the user create amazing stylized/non-realistic image generation prompts. Strictly avoid realistic styling, photorealism, and terms like "photorealistic", "realistic", "realism", "8k", "4k", "soft shadows", "ultra detailed textures", "unreal engine", "octane render".';
+  }
+  
+  const gelKeyEl = document.getElementById('setting-gelbooru-api-key');
+  if (gelKeyEl) {
+    gelKeyEl.value = settings.gelbooru_api_key || '';
+  }
+  const gelUidEl = document.getElementById('setting-gelbooru-user-id');
+  if (gelUidEl) {
+    gelUidEl.value = settings.gelbooru_user_id || '';
   }
 }
 
@@ -1139,6 +1568,14 @@ function initImageSizeSelector() {
   renderResolutions();
 }
 
+// ─── Lineage Helper ──────────────────────────────────────────────────
+window.hasLineage = function(imgId) {
+  const images = albumStore.getAll();
+  // Image has lineage if it has a parent or if it is a parent
+  return images.some(img => img.id === imgId && img.parentId) || 
+         images.some(img => img.parentId === imgId);
+}
+
 // ─── Gallery Album Render ─────────────────────────────────────────
 function renderGalleryList(invisibleImgId = null) {
   const grid = document.getElementById('gallery-album-grid');
@@ -1161,13 +1598,15 @@ function renderGalleryList(invisibleImgId = null) {
     card.className = 'gallery-item-card';
     if (invisibleImgId && img.id === invisibleImgId) {
       card.classList.add('just-added-flying');
+      card.classList.add('no-entry-anim');
     }
     card.innerHTML = `
       <img src="${img.url}" alt="Saved artwork">
       <div class="gallery-item-overlay">
-        <button class="gallery-item-action-btn view-details" title="Use Prompt">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="20 6 9 17 4 12"/>
+        <button class="gallery-item-action-btn view-details" title="Copy Prompt">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
           </svg>
         </button>
         <button class="gallery-item-action-btn edit-saved" title="Edit Image">
@@ -1186,6 +1625,14 @@ function renderGalleryList(invisibleImgId = null) {
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
           </svg>
         </button>
+        ${window.hasLineage(img.id) ? `
+        <button class="gallery-item-action-btn view-lineage" title="View Lineage Tree">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+          </svg>
+        </button>
+        ` : ''}
       </div>
     `;
 
@@ -1209,7 +1656,7 @@ function renderGalleryList(invisibleImgId = null) {
       e.stopPropagation();
       document.getElementById('album-drawer').classList.remove('open');
       if (window.switchView) window.switchView('create');
-      enterEditorMode(img.url, img.prompt, img.tags);
+      enterEditorMode(img.url, img.prompt, img.tags, img.id);
     });
 
     // Click fullscreen button
@@ -1228,6 +1675,14 @@ function renderGalleryList(invisibleImgId = null) {
       if (window.renderAlbumWorkspace) window.renderAlbumWorkspace();
       showToast('Artwork removed from album', 'info');
     });
+
+    const lineageBtn = card.querySelector('.view-lineage');
+    if (lineageBtn) {
+      lineageBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (window.openLineageTree) window.openLineageTree(img.id);
+      });
+    }
 
     grid.appendChild(card);
   });
@@ -1311,7 +1766,168 @@ window.renderAlbumWorkspace = function() {
     statsInner.innerHTML = `<div><strong>${images.length}</strong><br>arts</div>`;
   }
 
-  // Group by date
+  // Track which images are children of other images in this album
+  const allIds = new Set(images.map(i => i.id));
+  const childrenCountMap = {}; // parentId -> count
+  images.forEach(img => {
+    if (img.parentId && allIds.has(img.parentId)) {
+      childrenCountMap[img.parentId] = (childrenCountMap[img.parentId] || 0) + 1;
+    }
+  });
+
+  const isGroupMode = document.getElementById('toggle-group-lineage')?.checked;
+
+  // In group mode, hide direct children from the date groups (they'll appear under parent)
+  const hiddenChildIds = new Set();
+  if (isGroupMode) {
+    images.forEach(img => {
+      if (img.parentId && allIds.has(img.parentId)) {
+        hiddenChildIds.add(img.id);
+      }
+    });
+  }
+
+  // Build a helper to create a gallery card for an image
+  function buildCard(img, isChild = false) {
+    const card = document.createElement('div');
+    card.className = 'gallery-item-card' + (isChild ? ' child-card' : '');
+    card.dataset.imgId = img.id;
+
+    const childCount = childrenCountMap[img.id] || 0;
+    // In badge we'll want total descendants, but childrenCountMap is only direct children.
+    // We use it as a quick check; the badge text is set after buildCard via collectDescendants if needed.
+    const badgeHtml = (isGroupMode && childCount > 0)
+      ? `<div class="edits-badge" data-root="${img.id}">…</div>`
+      : '';
+
+    if (isGroupMode && childCount > 0) card.classList.add('has-children');
+
+    card.innerHTML = `
+      <img src="${img.url}" alt="Saved artwork">
+      ${badgeHtml}
+      <div class="gallery-item-overlay">
+        <button class="gallery-item-action-btn view-details" title="Copy Prompt">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+        </button>
+        <button class="gallery-item-action-btn edit-saved" title="Edit Image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+        </button>
+        <button class="gallery-item-action-btn view-fullscreen" title="Open Fullscreen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+          </svg>
+        </button>
+        <button class="gallery-item-action-btn delete" title="Delete Saved">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+        </button>
+        ${window.hasLineage(img.id) ? `
+        <button class="gallery-item-action-btn view-lineage" title="View Lineage Tree">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+          </svg>
+        </button>
+        ` : ''}
+      </div>
+    `;
+
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.gallery-item-action-btn')) return;
+      // In group mode, clicking a parent with children toggles its children
+      if (isGroupMode && childCount > 0) {
+        toggleChildCards(img.id, card);
+        return;
+      }
+      if (window.openLightbox) window.openLightbox(img.url, img.prompt, img.tags);
+    });
+
+    card.querySelector('.view-details').addEventListener('click', (e) => {
+      e.stopPropagation();
+      restorePromptFromSaved(img);
+      showToast('Loaded prompt & tags from gallery');
+    });
+
+    card.querySelector('.edit-saved').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (window.switchView) window.switchView('create');
+      enterEditorMode(img.url, img.prompt, img.tags, img.id);
+    });
+
+    card.querySelector('.view-fullscreen').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (window.openLightbox) window.openLightbox(img.url, img.prompt, img.tags);
+    });
+
+    card.querySelector('.delete').addEventListener('click', (e) => {
+      e.stopPropagation();
+      albumStore.delete(img.id);
+      renderGalleryList();
+      renderAlbumWorkspace();
+      showToast('Artwork removed from album', 'info');
+    });
+
+    const lineageBtn = card.querySelector('.view-lineage');
+    if (lineageBtn) {
+      lineageBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (window.openLineageTree) window.openLineageTree(img.id);
+      });
+    }
+
+    return card;
+  }
+
+  // Build children-by-parent map for fast lookup
+  const childrenByParent = {}; // parentId -> [child img, ...]
+  images.forEach(img => {
+    if (img.parentId && allIds.has(img.parentId)) {
+      if (!childrenByParent[img.parentId]) childrenByParent[img.parentId] = [];
+      childrenByParent[img.parentId].push(img);
+    }
+  });
+
+  // Recursively collect all descendants of a given id (BFS, preserves order)
+  function collectDescendants(rootId) {
+    const result = [];
+    const queue = [...(childrenByParent[rootId] || [])];
+    while (queue.length > 0) {
+      const item = queue.shift();
+      result.push(item);
+      const grandchildren = childrenByParent[item.id] || [];
+      queue.push(...grandchildren);
+    }
+    return result;
+  }
+
+  // Toggle children visibility when clicking a parent card (shows/hides all descendants)
+  function toggleChildCards(rootId, parentCard) {
+    const grid = parentCard.closest('.gallery-grid');
+    if (!grid) return;
+    const childCards = grid.querySelectorAll(`.child-card[data-root-id="${rootId}"]`);
+    const isExpanded = parentCard.dataset.expanded === 'true';
+    parentCard.dataset.expanded = isExpanded ? 'false' : 'true';
+    childCards.forEach((cc, i) => {
+      if (isExpanded) {
+        cc.classList.remove('visible');
+        setTimeout(() => cc.classList.add('hidden-child'), 300);
+      } else {
+        cc.classList.remove('hidden-child');
+        requestAnimationFrame(() => {
+          setTimeout(() => cc.classList.add('visible'), i * 40);
+        });
+      }
+    });
+  }
+
+  // Group by date — skip ALL descendants in group mode (they appear under root ancestor)
   const now = Date.now();
   const groups = [
     { key: 'hour', title: 'Last Hour', items: [] },
@@ -1321,6 +1937,7 @@ window.renderAlbumWorkspace = function() {
   ];
 
   images.forEach(img => {
+    if (isGroupMode && hiddenChildIds.has(img.id)) return;
     const timestamp = img.timestamp ? new Date(img.timestamp).getTime() : now;
     const diff = now - timestamp;
     
@@ -1351,71 +1968,42 @@ window.renderAlbumWorkspace = function() {
     grid.className = 'gallery-grid';
     
     group.items.forEach(img => {
-      const card = document.createElement('div');
-      card.className = 'gallery-item-card';
-      card.innerHTML = `
-        <img src="${img.url}" alt="Saved artwork">
-        <div class="gallery-item-overlay">
-          <button class="gallery-item-action-btn view-details" title="Use Prompt">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-          </button>
-          <button class="gallery-item-action-btn edit-saved" title="Edit Image">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-            </svg>
-          </button>
-          <button class="gallery-item-action-btn view-fullscreen" title="Open Fullscreen">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-            </svg>
-          </button>
-          <button class="gallery-item-action-btn delete" title="Delete Saved">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
-          </button>
-        </div>
-      `;
-
-      card.addEventListener('click', (e) => {
-        if (e.target.closest('.gallery-item-action-btn')) return;
-        if (window.openLightbox) window.openLightbox(img.url, img.prompt, img.tags);
-      });
-
-      card.querySelector('.view-details').addEventListener('click', (e) => {
-        e.stopPropagation();
-        restorePromptFromSaved(img);
-        showToast('Loaded prompt & tags from gallery');
-      });
-
-      card.querySelector('.edit-saved').addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (window.switchView) window.switchView('create');
-        enterEditorMode(img.url, img.prompt, img.tags);
-      });
-
-      card.querySelector('.view-fullscreen').addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (window.openLightbox) window.openLightbox(img.url, img.prompt, img.tags);
-      });
-
-      card.querySelector('.delete').addEventListener('click', (e) => {
-        e.stopPropagation();
-        albumStore.delete(img.id);
-        renderGalleryList();
-        if (window.renderAlbumWorkspace) window.renderAlbumWorkspace();
-        showToast('Artwork removed from album', 'info');
-      });
-
+      const card = buildCard(img, false);
       grid.appendChild(card);
+
+      // In group mode, insert ALL descendants (not just direct children) after the root
+      if (isGroupMode && childrenByParent[img.id]) {
+        const allDescendants = collectDescendants(img.id);
+        // Update badge with real total count
+        const badge = card.querySelector('.edits-badge');
+        if (badge) {
+          const n = allDescendants.length;
+          badge.textContent = `${n} edit${n !== 1 ? 's' : ''}`;
+        }
+        allDescendants.forEach((descendant, i) => {
+          const childCard = buildCard(descendant, true);
+          childCard.dataset.rootId = img.id; // link to root ancestor for toggle
+          childCard.classList.add('hidden-child');
+          grid.appendChild(childCard);
+        });
+      }
     });
+
     section.appendChild(grid);
     groupsContainer.appendChild(section);
   });
 }
+
+// Listen for toggle-group-lineage changes
+document.addEventListener('DOMContentLoaded', () => {
+  const groupToggle = document.getElementById('toggle-group-lineage');
+  if (groupToggle) {
+    groupToggle.addEventListener('change', () => {
+      window.renderAlbumWorkspace();
+    });
+  }
+});
+
 
 function restorePromptFromSaved(savedImage) {
   const promptInput = document.getElementById('prompt-text-input');
@@ -1459,17 +2047,20 @@ function getFinalPrompt() {
   
   const tagsStr = expandedTags.join(', ');
   
-  if (tagsStr && rawText) {
-    return `${tagsStr}, ${rawText}`;
-  } else if (tagsStr) {
-    return tagsStr;
-  } else {
-    return rawText;
-  }
+  const prefixInput = document.getElementById('setting-comfyui-positive-prefix');
+  const prefixStr = prefixInput ? prefixInput.value.trim() : '';
+
+  let finalParts = [];
+  if (prefixStr) finalParts.push(prefixStr);
+  if (tagsStr) finalParts.push(tagsStr);
+  if (rawText) finalParts.push(rawText);
+
+  return finalParts.join(', ');
 }
 
 async function startImageGeneration() {
   appState.lastGenerationMode = 'creation';
+  appState.editorSourceImageId = null; // Clear lineage for fresh generation
   const finalPrompt = getFinalPrompt();
   if (!finalPrompt.trim()) {
     showToast('Prompt cannot be empty', 'error');
@@ -1483,15 +2074,14 @@ async function startImageGeneration() {
   // Show loader view
   showLoaderForm();
 
-  const stageText = document.getElementById('loader-stage-text');
-  stageText.textContent = 'Waiting in ComfyUI queue...';
+  smoothUpdateLoaderText('Waiting in ComfyUI queue...');
 
   try {
     const activeLoras = appState.loras.filter(l => l.enabled && l.name);
     const imgUrl = await generateImageComfyUI(
       finalPrompt,
       (status) => {
-        stageText.textContent = status;
+        smoothUpdateLoaderText(status);
       },
       appState.generationAbortController.signal,
       (previewUrl) => {
@@ -1572,6 +2162,17 @@ function showLoaderForm() {
     editorContainer.classList.add('hidden');
   }
   document.getElementById('generation-loader').classList.remove('hidden');
+
+  // Reset progress bar width
+  const progressBar = document.getElementById('loader-progress-bar');
+  if (progressBar) {
+    progressBar.style.width = '0%';
+  }
+  // Reset stage text container to single initial active span
+  const stageTextContainer = document.getElementById('loader-stage-text');
+  if (stageTextContainer) {
+    stageTextContainer.innerHTML = '<span class="stage-text-span active">Waiting in ComfyUI queue...</span>';
+  }
 }
 
 function showArtPreview(url) {
@@ -1598,6 +2199,15 @@ function showArtPreview(url) {
       
       const wrapper = document.getElementById('art-preview-area');
       wrapper.classList.remove('hidden');
+      
+      const surpriseActions = document.getElementById('post-gen-surprise-actions');
+      if (surpriseActions) {
+        if (appState.lastGenerationWasSurprise) {
+          surpriseActions.classList.remove('hidden');
+        } else {
+          surpriseActions.classList.add('hidden');
+        }
+      }
     }, () => {
       // final callback after animation finishes
       resetLivePreview();
@@ -2179,8 +2789,19 @@ function initSurpriseMe() {
 
   if (btnSurprise) {
     btnSurprise.addEventListener('click', async () => {
+      // Remove previously added surprise tags first
+      if (appState.lastSurpriseTags && appState.lastSurpriseTags.length > 0) {
+        appState.lastSurpriseTags.forEach(tag => {
+          const index = appState.activeTags.indexOf(tag);
+          if (index !== -1) {
+            appState.activeTags.splice(index, 1);
+          }
+        });
+        appState.lastSurpriseTags = [];
+      }
+
       const categories = tagsDatabase.getAllCategories();
-      let addedAny = false;
+      let addedAny = true; // We always render tag chips/highlights if we removed past surprise tags
       const tagsToAdd = [];
 
       for (const key in categories) {
@@ -2219,17 +2840,74 @@ function initSurpriseMe() {
         renderCategoryTags();
       }
 
+      appState.lastGenerationWasSurprise = true;
       // Generate art immediately with the combined prompt
       startImageGeneration();
     });
   }
 }
 
+// Извлечь artist tag из промпта (первый @-prefixed токен в начале)
+function extractArtistTag(prompt) {
+  if (!prompt) return null;
+  // Ищем @tag в начале строки (после опциональных пробелов/запятых)
+  // Тэг может содержать буквы, цифры, _, -, .
+  const match = prompt.match(/^\s*@([A-Za-z0-9_\-.]+)/);
+  if (match) {
+    return '@' + match[1];
+  }
+  // Fallback: искать @tag в любом месте (приоритет — первый найденный)
+  const fallbackMatch = prompt.match(/@([A-Za-z0-9_\-.]+)/);
+  if (fallbackMatch) {
+    return '@' + fallbackMatch[1];
+  }
+  return null;
+}
+
+// Обновить тэг артиста рядом с Add artist tag
+function updateArtistTagInfo() {
+  const displayEl = document.getElementById('artist-tag-display');
+  if (!displayEl) return;
+  
+  displayEl.className = 'artist-tag-pill'; // Reset classes
+  
+  if (appState.artistTagToggle) {
+    if (appState.artistTagValue) {
+      displayEl.classList.add('found');
+      displayEl.textContent = appState.artistTagValue;
+    } else {
+      displayEl.classList.add('not-found');
+      displayEl.textContent = 'not found';
+    }
+  } else {
+    if (appState.artistTagValue) {
+      displayEl.classList.add('inactive');
+      displayEl.textContent = appState.artistTagValue;
+    } else {
+      displayEl.classList.add('hidden');
+      displayEl.textContent = '';
+    }
+  }
+}
+
 // ─── Image Editor Controller ───────────────────────────────────────
-function enterEditorMode(imageUrl, promptText = '', tagsArray = []) {
+function enterEditorMode(imageUrl, promptText = '', tagsArray = [], sourceImageId = null) {
   appState.editorActive = true;
   appState.editorSourceUrl = imageUrl;
+  appState.editorSourceImageId = sourceImageId;
   appState.editorOriginalBlob = null;
+
+  // СОХРАНИТЬ оригинальный промпт для извлечения artist tag
+  appState.editorOriginalPrompt = promptText || '';
+  
+  // Извлечь artist tag заранее (если есть)
+  appState.artistTagValue = extractArtistTag(appState.editorOriginalPrompt);
+  
+  // СКИНУТЬ состояние тумблера при входе
+  appState.artistTagToggle = false;
+  const toggleEl = document.getElementById('toggle-artist-tag');
+  if (toggleEl) toggleEl.checked = false;
+  updateArtistTagInfo();
 
   // Set prompt and tags in standard input fields so the user can edit them
   const promptInput = document.getElementById('prompt-text-input');
@@ -2414,35 +3092,42 @@ async function prepareEditorBlobs() {
     canvas.toBlob(resolve, 'image/jpeg', 0.95);
   });
   
-  // 2. Export mask to black-and-white JPEG (3 channels)
+  // 2. Export mask with feathered edge to PNG
   const maskBlob = await new Promise((resolve) => {
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext('2d');
+    
+    // 1. Black background
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, w, h);
-    ctx.drawImage(maskCanvas, 0, 0, w, h);
     
-    // Perform threshold to ensure absolute black and white
+    // 2. Apply blur to the mask BEFORE drawing - creates a feathered edge
+    //    Radius ~1.2% of the smaller dimension of the image
+    const featherRadius = Math.max(2, Math.round(Math.min(w, h) * 0.012));
+    ctx.filter = `blur(${featherRadius}px)`;
+    ctx.drawImage(maskCanvas, 0, 0, w, h);
+    ctx.filter = 'none';
+    
+    // 3. Normalization: from color mask (cyan) to grayscale
+    //    Preserve gradient, not hard threshold!
     const imgData = ctx.getImageData(0, 0, w, h);
     const data = imgData.data;
     for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3] > 0 && (data[i] > 10 || data[i + 1] > 10 || data[i + 2] > 10)) {
-        // Pixel has drawing, set to white
-        data[i] = 255;
-        data[i + 1] = 255;
-        data[i + 2] = 255;
-      } else {
-        // Unpainted, set to black
-        data[i] = 0;
-        data[i + 1] = 0;
-        data[i + 2] = 0;
-      }
+      // Use maximum channel as brightness (cyan -> white)
+      const brightness = Math.max(data[i], data[i + 1], data[i + 2]);
+      // Gamma correction for smoother transition
+      const normalized = brightness / 255;
+      const feathered = Math.pow(normalized, 1.5) * 255;
+      data[i] = feathered;
+      data[i + 1] = feathered;
+      data[i + 2] = feathered;
       data[i + 3] = 255;
     }
     ctx.putImageData(imgData, 0, 0);
-    canvas.toBlob(resolve, 'image/jpeg', 0.95);
+    
+    canvas.toBlob(resolve, 'image/png'); // PNG!
   });
   
   return { srcBlob, maskBlob };
@@ -2454,6 +3139,21 @@ function initImageEditor() {
   const cursor = document.getElementById('editor-brush-cursor');
 
   if (!img || !canvas) return;
+
+  // Add artist tag toggle handler
+  const artistTagToggle = document.getElementById('toggle-artist-tag');
+  if (artistTagToggle) {
+    artistTagToggle.addEventListener('change', () => {
+      appState.artistTagToggle = artistTagToggle.checked;
+      updateArtistTagInfo();
+      
+      if (artistTagToggle.checked && !appState.artistTagValue) {
+        showToast('No @-tag found in original prompt', 'info');
+      } else if (artistTagToggle.checked) {
+        showToast(`Artist tag enabled: ${appState.artistTagValue}`, 'success');
+      }
+    });
+  }
 
   // Resize canvas when image finishes loading
   img.addEventListener('load', () => {
@@ -2599,10 +3299,22 @@ function initImageEditor() {
       brushControls.style.display = 'block';
       if (btnBrushDraw) btnBrushDraw.style.display = ''; // Restore default display
       
+      // ПОКАЗАТЬ ползунок denoise, СКРЫТЬ пресеты
+      const denoiseRow = document.querySelector('.editor-denoise-row');
+      const presetsRow = document.getElementById('img2img-denoise-presets');
+      if (denoiseRow) denoiseRow.style.display = '';
+      if (presetsRow) presetsRow.style.display = 'none';
+      
+      // СКРЫТЬ переключатель Edit Pro
+      const editProSwitcher = document.getElementById('edit-pro-mode-switcher');
+      if (editProSwitcher) editProSwitcher.style.display = 'none';
+
       // Update denoise default for inpainting
-      document.getElementById('input-editor-denoise').value = 0.75;
-      document.getElementById('editor-denoise-val').textContent = '0.75';
-      appState.denoise = 0.75;
+      document.getElementById('input-editor-denoise').value = 0.50;
+      document.getElementById('editor-denoise-val').textContent = '0.50';
+      appState.denoise = 0.50;
+
+      setBrushSettingsCollapsed(true);
       
       // Resize canvas just in case layout shifted
       resizeCanvasToMatchImage();
@@ -2622,12 +3334,30 @@ function initImageEditor() {
         btnBrushDraw.classList.remove('active');
         btnBrushDraw.style.display = 'none'; // Hide mask drawing
       }
-      if (paletteGroup) paletteGroup.style.display = 'block'; // Show palette
+      applyBrushModeVisibility();
+      setBrushSettingsCollapsed(true);
       
-      // Update denoise default for global img2img
-      document.getElementById('input-editor-denoise').value = 0.55;
-      document.getElementById('editor-denoise-val').textContent = '0.55';
-      appState.denoise = 0.55;
+      // СКРЫТЬ ползунок denoise, ПОКАЗАТЬ пресеты
+      const denoiseRow = document.querySelector('.editor-denoise-row');
+      const presetsRow = document.getElementById('img2img-denoise-presets');
+      if (denoiseRow) denoiseRow.style.display = 'none';
+      if (presetsRow) presetsRow.style.display = 'flex';
+      
+      // СКРЫТЬ переключатель Edit Pro
+      const editProSwitcher = document.getElementById('edit-pro-mode-switcher');
+      if (editProSwitcher) editProSwitcher.style.display = 'none';
+
+      // Установить Medium по умолчанию
+      appState.denoise = 0.50;
+      const mediumBtn = presetsRow?.querySelector('[data-denoise="0.50"]');
+      presetsRow?.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      if (mediumBtn) mediumBtn.classList.add('active');
+      
+      // Синхронизировать скрытый слайдер (на случай переключения в inpaint)
+      const slider = document.getElementById('input-editor-denoise');
+      const display = document.getElementById('editor-denoise-val');
+      if (slider) slider.value = 0.50;
+      if (display) display.textContent = '0.50';
     });
 
     btnEditPro.addEventListener('click', () => {
@@ -2639,31 +3369,117 @@ function initImageEditor() {
       // Hide brush controls entirely since this method is prompt-based
       brushControls.style.display = 'none';
       
-      // Update denoise default for Edit Pro
+      // ПОКАЗАТЬ переключатель Global/Details
+      const editProSwitcher = document.getElementById('edit-pro-mode-switcher');
+      if (editProSwitcher) editProSwitcher.style.display = 'flex';
+      
+      // СКРЫТЬ пресеты img2img и ползунок
+      const denoiseRow = document.querySelector('.editor-denoise-row');
+      const presetsRow = document.getElementById('img2img-denoise-presets');
+      if (denoiseRow) denoiseRow.style.display = 'none';
+      if (presetsRow) presetsRow.style.display = 'none';
+      
+      // Edit Pro denoise = 1.0
       document.getElementById('input-editor-denoise').value = 1.0;
       document.getElementById('editor-denoise-val').textContent = '1.0';
       appState.denoise = 1.0;
     });
   }
 
+  // Img2Img denoise presets handler
+  const presetButtons = document.querySelectorAll('.preset-btn[data-mode="img2img"]');
+  presetButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const denoise = parseFloat(btn.dataset.denoise);
+      appState.denoise = denoise;
+      
+      // Update UI
+      presetButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      // Синхронизировать скрытый слайдер (на случай переключения в inpaint)
+      const slider = document.getElementById('input-editor-denoise');
+      const display = document.getElementById('editor-denoise-val');
+      if (slider) slider.value = denoise;
+      if (display) display.textContent = denoise.toFixed(2);
+    });
+  });
+
+  // Edit Pro mode switcher
+  const editProModeBtns = document.querySelectorAll('.edit-pro-mode-btn');
+  editProModeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.editMode;
+      appState.editProMode = mode;
+      
+      // Update UI
+      editProModeBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
   // Brush Mode drawing/sketch toggle
   const btnBrushDraw = document.getElementById('btn-editor-brush-draw');
   const btnBrushSketch = document.getElementById('btn-editor-brush-sketch');
   const paletteGroup = document.getElementById('editor-color-palette');
+  const brushSettingsContent = document.getElementById('editor-brush-settings-content');
+  const brushCollapseArrow = document.getElementById('brush-collapse-arrow');
+
+  // Helper: показать/скрыть настройки кисти
+  function setBrushSettingsCollapsed(collapsed) {
+    appState.brushSettingsCollapsed = collapsed;
+    if (brushSettingsContent) {
+      brushSettingsContent.classList.toggle('collapsed', collapsed);
+    }
+    if (brushCollapseArrow) {
+      brushCollapseArrow.classList.toggle('collapsed', collapsed);
+    }
+  }
+
+  // Helper: применить видимость палитры в зависимости от режима
+  function applyBrushModeVisibility() {
+    if (paletteGroup) {
+      paletteGroup.style.display = appState.brushMode === 'sketch' ? 'block' : 'none';
+    }
+  }
 
   if (btnBrushDraw && btnBrushSketch) {
     btnBrushDraw.addEventListener('click', () => {
-      appState.brushMode = 'draw';
-      btnBrushDraw.classList.add('active');
-      btnBrushSketch.classList.remove('active');
-      if (paletteGroup) paletteGroup.style.display = 'none';
+      if (appState.brushMode === 'draw') {
+        // Уже активен — свернуть/развернуть настройки
+        setBrushSettingsCollapsed(!appState.brushSettingsCollapsed);
+      } else {
+        // Переключиться в режим draw + показать настройки
+        appState.brushMode = 'draw';
+        btnBrushDraw.classList.add('active');
+        btnBrushSketch.classList.remove('active');
+        applyBrushModeVisibility();
+        setBrushSettingsCollapsed(false);
+      }
     });
 
     btnBrushSketch.addEventListener('click', () => {
-      appState.brushMode = 'sketch';
-      btnBrushSketch.classList.add('active');
-      btnBrushDraw.classList.remove('active');
-      if (paletteGroup) paletteGroup.style.display = 'block';
+      if (appState.brushMode === 'sketch') {
+        // Уже активен — свернуть/развернуть настройки
+        setBrushSettingsCollapsed(!appState.brushSettingsCollapsed);
+      } else {
+        // Переключиться в режим sketch + показать настройки
+        appState.brushMode = 'sketch';
+        btnBrushSketch.classList.add('active');
+        btnBrushDraw.classList.remove('active');
+        applyBrushModeVisibility();
+        setBrushSettingsCollapsed(false);
+      }
+    });
+  }
+
+  // Клик по заголовку "Brush Controls" тоже сворачивает/разворачивает
+  const brushHeader = document.querySelector('.editor-brush-header');
+  if (brushHeader) {
+    brushHeader.addEventListener('click', (e) => {
+      // Не реагировать, если клик был по кнопкам Draw Mask / Sketch
+      if (e.target.closest('.editor-toggle-btn')) return;
+      setBrushSettingsCollapsed(!appState.brushSettingsCollapsed);
     });
   }
 
@@ -2744,7 +3560,15 @@ async function startImageEditGeneration() {
   // If the editor has its own prompt, use it; otherwise fall back to the main prompt
   const editorPromptEl = document.getElementById('editor-prompt-input');
   const editorPromptText = editorPromptEl ? editorPromptEl.value.trim() : '';
-  const finalPrompt = editorPromptText || getFinalPrompt();
+  let finalPrompt = editorPromptText || getFinalPrompt();
+  
+  // НОВОЕ: добавить artist tag, если тумблер включён и тэг найден
+  if (appState.artistTagToggle && appState.artistTagValue) {
+    finalPrompt = `${finalPrompt}, ${appState.artistTagValue}`;
+  }
+  
+  // Save the prompt used for this edit so we can store it as modificationPrompt on save
+  appState.lastEditPrompt = finalPrompt;
 
   if (!finalPrompt.trim()) {
     showToast('Prompt cannot be empty', 'error');
@@ -2753,8 +3577,7 @@ async function startImageEditGeneration() {
 
   // Show loader view
   showLoaderForm();
-  const stageText = document.getElementById('loader-stage-text');
-  stageText.textContent = 'Preparing image and mask...';
+  smoothUpdateLoaderText('Preparing image and mask...');
 
   try {
     // 1. Export blobs from canvas
@@ -2764,20 +3587,21 @@ async function startImageEditGeneration() {
     appState.generationAbortController = new AbortController();
     appState.isGenerating = true;
 
-    stageText.textContent = 'Uploading images to ComfyUI...';
+    smoothUpdateLoaderText('Uploading images to ComfyUI...');
 
     const editParams = {
       sourceImageBlob: srcBlob,
       maskImageBlob: appState.editorMode === 'inpaint' ? maskBlob : null,
       denoise: appState.denoise,
-      mode: appState.editorMode
+      mode: appState.editorMode,
+      editProMode: appState.editProMode || 'global'
     };
 
     const activeLoras = appState.loras.filter(l => l.enabled && l.name);
     const imgUrl = await generateImageComfyUI(
       finalPrompt,
       (status) => {
-        stageText.textContent = status;
+        smoothUpdateLoaderText(status);
       },
       appState.generationAbortController.signal,
       (previewUrl) => {
@@ -3025,5 +3849,226 @@ function renderLorasList() {
     listContainer.appendChild(block);
   });
 }
+// ─── Image Lineage Tree Overlay ───────────────────────────────────────
+window.openLineageTree = function(startImgId) {
+  const overlay = document.getElementById('lineage-tree-overlay');
+  const nodesWrapper = document.getElementById('lineage-nodes-wrapper');
+  const svgCanvas = document.getElementById('lineage-svg-canvas');
+  overlay.classList.remove('hidden');
 
+  const images = albumStore.getAll();
+  const imagesMap = {};
+  images.forEach(img => imagesMap[img.id] = img);
 
+  // Find root
+  let rootId = startImgId;
+  while(imagesMap[rootId] && imagesMap[rootId].parentId && imagesMap[imagesMap[rootId].parentId]) {
+    rootId = imagesMap[rootId].parentId;
+  }
+
+  // Build tree
+  const childrenMap = {};
+  images.forEach(img => {
+    if (img.parentId) {
+      if (!childrenMap[img.parentId]) childrenMap[img.parentId] = [];
+      childrenMap[img.parentId].push(img);
+    }
+  });
+
+  // Calculate layout
+  const nodeWidth = 150;
+  const nodeHeight = 250;
+  const gapX = 450;
+  const gapY = 200;
+  
+  let currentY = 50;
+
+  const positions = {};
+  function traverse(id, depth) {
+    const node = imagesMap[id];
+    if (!node) return 0;
+    const children = childrenMap[id] || [];
+    let childYSum = 0;
+    
+    if (children.length === 0) {
+      positions[id] = { x: depth * gapX + 50, y: currentY };
+      currentY += gapY;
+      return positions[id].y;
+    }
+
+    children.forEach(child => {
+      childYSum += traverse(child.id, depth + 1);
+    });
+
+    const y = childYSum / children.length;
+    positions[id] = { x: depth * gapX + 50, y: y };
+    return y;
+  }
+
+  traverse(rootId, 0);
+
+  nodesWrapper.innerHTML = '';
+  svgCanvas.innerHTML = '';
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+  Object.keys(positions).forEach(id => {
+    const pos = positions[id];
+    const node = imagesMap[id];
+    
+    minX = Math.min(minX, pos.x);
+    minY = Math.min(minY, pos.y);
+    maxX = Math.max(maxX, pos.x + nodeWidth);
+    maxY = Math.max(maxY, pos.y + nodeHeight);
+
+    const nodeEl = document.createElement('div');
+    nodeEl.className = 'tree-node ' + (id === startImgId ? 'active' : '');
+    nodeEl.style.left = pos.x + 'px';
+    nodeEl.style.top = pos.y + 'px';
+    nodeEl.innerHTML = `
+      <img src="${node.url}" alt="Lineage Image" />
+    `;
+
+    nodeEl.onclick = () => {
+      overlay.classList.add('hidden');
+      if (window.switchView) window.switchView('create');
+      enterEditorMode(node.url, node.prompt, node.tags, node.id);
+    };
+
+    nodesWrapper.appendChild(nodeEl);
+  });
+
+  const svgNS = "http://www.w3.org/2000/svg";
+  
+  Object.keys(childrenMap).forEach(parentId => {
+    if (!positions[parentId]) return;
+    const pPos = positions[parentId];
+    
+    childrenMap[parentId].forEach(child => {
+      if (!positions[child.id]) return;
+      const cPos = positions[child.id];
+      
+      const startX = pPos.x + nodeWidth;
+      const startY = pPos.y + nodeHeight / 2 - 40; // center roughly on image
+      const endX = cPos.x;
+      const endY = cPos.y + nodeHeight / 2 - 40;
+      
+      const path = document.createElementNS(svgNS, 'path');
+      path.setAttribute('class', 'tree-link');
+      const cx1 = startX + (endX - startX) / 2;
+      const cx2 = startX + (endX - startX) / 2;
+      path.setAttribute('d', `M ${startX} ${startY} C ${cx1} ${startY}, ${cx2} ${endY}, ${endX} ${endY}`);
+      svgCanvas.appendChild(path);
+
+      if (child.modificationPrompt) {
+        // SVG foreign object for text box
+        const fo = document.createElementNS(svgNS, 'foreignObject');
+        const midX = (startX + endX) / 2;
+        const midY = (startY + endY) / 2;
+        fo.setAttribute('x', midX - 100);
+        fo.setAttribute('y', midY - 25);
+        fo.setAttribute('width', 200);
+        fo.setAttribute('height', 500); // large height so expanding contents are not cropped by SVG
+        fo.setAttribute('class', 'tree-prompt-foreign');
+        
+        fo.innerHTML = `<div class="tree-prompt-box"><span>${child.modificationPrompt}</span></div>`;
+        svgCanvas.appendChild(fo);
+
+        const box = fo.querySelector('.tree-prompt-box');
+        box.onclick = (e) => {
+          e.stopPropagation();
+          box.classList.toggle('expanded');
+        };
+      }
+    });
+  });
+
+  // Adjust SVG canvas size
+  svgCanvas.style.width = (maxX + 300) + 'px';
+  svgCanvas.style.height = (maxY + 300) + 'px';
+  nodesWrapper.style.width = (maxX + 300) + 'px';
+  nodesWrapper.style.height = (maxY + 300) + 'px';
+  
+  // Center view on start node
+  const startPos = positions[startImgId];
+  const overlayRect = overlay.getBoundingClientRect();
+  
+  currentZoom = 1;
+  currentPanX = (overlayRect.width / 2) - (startPos.x + nodeWidth/2);
+  currentPanY = (overlayRect.height / 2) - (startPos.y + nodeHeight/2);
+  updateTransform();
+}
+
+let currentZoom = 1;
+let currentPanX = 0;
+let currentPanY = 0;
+let isPanning = false;
+let startX, startY;
+
+const lineageContainer = document.getElementById('lineage-container');
+const svgCanvas = document.getElementById('lineage-svg-canvas');
+const nodesWrapper = document.getElementById('lineage-nodes-wrapper');
+
+function updateTransform() {
+  const transform = `translate(${currentPanX}px, ${currentPanY}px) scale(${currentZoom})`;
+  if (svgCanvas) svgCanvas.style.transform = transform;
+  if (nodesWrapper) nodesWrapper.style.transform = transform;
+}
+
+if (lineageContainer) {
+  lineageContainer.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.tree-node') || e.target.closest('.tree-prompt-box')) return;
+    isPanning = true;
+    startX = e.clientX - currentPanX;
+    startY = e.clientY - currentPanY;
+    lineageContainer.style.cursor = 'grabbing';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    currentPanX = e.clientX - startX;
+    currentPanY = e.clientY - startY;
+    updateTransform();
+  });
+
+  window.addEventListener('mouseup', () => {
+    isPanning = false;
+    lineageContainer.style.cursor = 'grab';
+  });
+
+  lineageContainer.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const zoomIntensity = 0.1;
+    const delta = e.deltaY > 0 ? -zoomIntensity : zoomIntensity;
+    const oldZoom = currentZoom;
+    currentZoom = Math.min(Math.max(0.2, currentZoom + delta), 3);
+    
+    const rect = lineageContainer.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    currentPanX = mouseX - (mouseX - currentPanX) * (currentZoom / oldZoom);
+    currentPanY = mouseY - (mouseY - currentPanY) * (currentZoom / oldZoom);
+    
+    updateTransform();
+  });
+
+  document.getElementById('lineage-close').addEventListener('click', () => {
+    document.getElementById('lineage-tree-overlay').classList.add('hidden');
+  });
+
+  document.getElementById('btn-lineage-zoom-out').addEventListener('click', () => {
+    currentZoom = Math.max(0.2, currentZoom - 0.2);
+    updateTransform();
+  });
+  document.getElementById('btn-lineage-zoom-in').addEventListener('click', () => {
+    currentZoom = Math.min(3, currentZoom + 0.2);
+    updateTransform();
+  });
+  document.getElementById('btn-lineage-zoom-reset').addEventListener('click', () => {
+    currentZoom = 1;
+    currentPanX = 0;
+    currentPanY = 0;
+    updateTransform();
+  });
+}

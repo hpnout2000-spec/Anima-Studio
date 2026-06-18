@@ -218,7 +218,7 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
         "strength": llliteStrength,
         "start_percent": 0.0,
         "end_percent": 1.0,
-        "preserve_wrapper": false
+        "preserve_wrapper": mode === 'inpaint' ? false : true
       }
     };
 
@@ -236,7 +236,7 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
         "class_type": "MaskBlur+",
         "inputs": {
           "mask": ["12", 0],
-          "amount": 21,
+          "amount": 8,
           "device": "auto"
         }
       };
@@ -258,7 +258,7 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
       "class_type": "MaskBlur+",
       "inputs": {
         "mask": ["12", 0],
-        "amount": 21,
+        "amount": 8,
         "device": "auto"
       }
     };
@@ -272,7 +272,7 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
         "pixels": ["10", 0],
         "vae": ["3", 0],
         "mask": ["12_blur", 0],
-        "grow_mask_by": 6
+        "grow_mask_by": 16
       }
     };
     
@@ -341,7 +341,7 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
 /**
  * Build the Anima Edit Pro workflow (Split-Screen Outpainting)
  */
-function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, denoise, loras = []) {
+function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, denoise, loras = [], editMode = 'global') {
   const seed = Math.floor(Math.random() * 2 ** 32);
   const steps = settings.comfyui_steps ?? 30;
   const cfg = settings.comfyui_cfg ?? 4.5;
@@ -351,11 +351,22 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
   const clipName = settings.comfyui_clip_name ?? 'qwen_3_06b_base.safetensors';
   const vaeName = settings.comfyui_vae_name ?? 'qwen_image_vae.safetensors';
   const llliteName = settings.comfyui_lllite_name || 'anima-lllite-inpainting-v2.safetensors';
-  const llliteStrength = settings.comfyui_lllite_strength ?? 1.0;
+  const llliteStrength = settings.comfyui_lllite_strength_edit_pro 
+    ?? settings.comfyui_lllite_strength 
+    ?? 0.85;
 
-  const stylePrompt = "masterpiece, best quality";
-  const instructions = "split screen, multiple views, The image on the right is different - \n" + prompt;
-  const finalPrompt = stylePrompt + ", " + instructions;
+  const stylePrompt = "masterpiece, best quality, very aesthetic, highly detailed";
+  
+  let instructions;
+  if (editMode === 'details') {
+    // Details mode: сохранить композицию, добавить/уточнить детали
+    instructions = `split screen, comparison view, left: original reference image, right: same composition with refined details - ${prompt}, anime illustration`;
+  } else {
+    // Global mode (по умолчанию): полностью новая правая часть
+    instructions = `split screen, comparison view, left: original reference image, right: ${prompt}, same character, same style, anime illustration`;
+  }
+  
+  const finalPrompt = `${stylePrompt}, ${instructions}`;
 
   let currentModel = ["1", 0];
   let currentClip = ["2", 0];
@@ -420,7 +431,7 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
     "51": {
       "class_type": "ImagePadKJ",
       "inputs": {
-        "left": 0, "right": 24, "top": 0, "bottom": 0,
+        "left": 0, "right": 48, "top": 0, "bottom": 0,
         "extra_padding": 0, "pad_mode": "color", "color": "1,1,1",
         "image": ["15", 0]
       }
@@ -436,7 +447,7 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
       "class_type": "AnimaLLLiteApply",
       "inputs": {
         "lllite_name": llliteName, "strength": llliteStrength,
-        "start_percent": 0, "end_percent": 1, "preserve_wrapper": true,
+        "start_percent": 0, "end_percent": 1, "preserve_wrapper": false,
         "model": currentModel, "image": ["12", 0], "mask": ["12", 2]
       }
     },
@@ -576,7 +587,7 @@ export async function generateImageComfyUI(prompt, onProgress = () => {}, signal
       let maskUploadName = null;
       if (editParams.maskImageBlob && editParams.mode === 'inpaint') {
         onProgress('Uploading mask...');
-        const maskUpload = await uploadImageToComfyUI(baseUrl, editParams.maskImageBlob, `edit_mask_${Date.now()}.jpg`);
+        const maskUpload = await uploadImageToComfyUI(baseUrl, editParams.maskImageBlob, `edit_mask_${Date.now()}.png`);
         maskUploadName = maskUpload.name;
       }
       
@@ -588,7 +599,8 @@ export async function generateImageComfyUI(prompt, onProgress = () => {}, signal
           settings,
           sourceUpload.name,
           editParams.denoise,
-          loras
+          loras,
+          editParams.editProMode || 'global'
         );
       } else {
         workflow = buildAnimaEditWorkflow(

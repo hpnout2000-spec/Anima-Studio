@@ -31,6 +31,25 @@
   /* Spring transitions matching reference Album nodes */
   --transition-spring: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
   --accent-secondary: #06b6d4;
+
+  /* ═══ NEW: iOS-style spring curves ═══ */
+  --ios-ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);     /* Standard ease */
+  --ios-ease-decelerate: cubic-bezier(0.16, 1, 0.3, 1);      /* Decelerate (enter) */
+  --ios-ease-accelerate: cubic-bezier(0.4, 0, 1, 1);         /* Accelerate (exit) */
+  --ios-spring-soft: cubic-bezier(0.25, 1.05, 0.5, 1);       /* Soft spring */
+  --ios-spring-medium: cubic-bezier(0.34, 1.3, 0.64, 1);     /* Medium spring */
+  --ios-spring-bouncy: cubic-bezier(0.34, 1.56, 0.64, 1);    /* Bouncy spring */
+  
+  /* iOS durations */
+  --ios-duration-instant: 100ms;
+  --ios-duration-quick: 200ms;
+  --ios-duration-normal: 350ms;
+  --ios-duration-slow: 500ms;
+  --ios-duration-page: 600ms;
+  
+  /* iOS scale feedback */
+  --ios-tap-scale: 0.96;
+  --ios-tap-scale-small: 0.98;
 }
 
 /* ─── Global Resets & Typography ─────────────────────────────────── */
@@ -40,6 +59,55 @@
   padding: 0;
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ═══ NEW: iOS-style tap feedback for interactive elements ═══ */
+button,
+[role="button"],
+.btn-icon-close,
+.btn-generate-art,
+.btn-secondary-action,
+.editor-toggle-btn,
+.category-tab-btn,
+.preset-btn,
+.edit-pro-mode-btn,
+.lora-dropdown-trigger,
+.lora-dropdown-item,
+.color-swatch,
+.gallery-item-card,
+.tag-chip,
+.grid-tag-item,
+.resolution-chip,
+.surprise-category-item,
+.addon-category-row,
+.toast-message {
+  transition: 
+    transform var(--ios-duration-quick) var(--ios-spring-medium),
+    background-color var(--ios-duration-quick) var(--ios-ease-standard),
+    color var(--ios-duration-quick) var(--ios-ease-standard),
+    border-color var(--ios-duration-quick) var(--ios-ease-standard),
+    box-shadow var(--ios-duration-quick) var(--ios-ease-standard),
+    opacity var(--ios-duration-quick) var(--ios-ease-standard);
+  will-change: transform;
+}
+
+button:active:not(:disabled),
+[role="button"]:active:not(:disabled) {
+  transform: scale(var(--ios-tap-scale));
+  transition: transform var(--ios-duration-instant) var(--ios-ease-decelerate);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* GPU acceleration for animated elements */
+.flying-art-clone,
+.morphing-preview-clone {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
 }
 
 body, html {
@@ -133,35 +201,34 @@ body, html {
   flex-direction: column;
   opacity: 1;
   pointer-events: auto;
-  
-  /* Collapsing spring transition curve */
-  transition:
-    width 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-    height 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-    bottom 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-    top 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-    left 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-    right 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-    border-radius 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.3s ease;
 }
 
-/* Open State Drawer style (with Overshoot Snap Ease) */
-.floating-drawer.open {
-  opacity: 1;
-  pointer-events: auto;
-  border-radius: 16px;
-  
-  /* Opening spring transition curve */
+/* Closing — быстрее, плавное замедление */
+.floating-drawer:not(.open) {
   transition:
-    width 0.46s cubic-bezier(0.2, 1.08, 0.4, 1),
-    height 0.46s cubic-bezier(0.2, 1.08, 0.4, 1),
-    bottom 0.46s cubic-bezier(0.2, 1.08, 0.4, 1),
-    top 0.46s cubic-bezier(0.2, 1.08, 0.4, 1),
-    left 0.46s cubic-bezier(0.2, 1.08, 0.4, 1),
-    right 0.46s cubic-bezier(0.2, 1.08, 0.4, 1),
-    border-radius 0.46s cubic-bezier(0.2, 1.08, 0.4, 1),
-    opacity 0.3s ease;
+    transform var(--ios-duration-normal) var(--ios-spring-soft),
+    width var(--ios-duration-normal) var(--ios-spring-soft),
+    height var(--ios-duration-normal) var(--ios-spring-soft),
+    bottom var(--ios-duration-normal) var(--ios-spring-soft),
+    top var(--ios-duration-normal) var(--ios-spring-soft),
+    left var(--ios-duration-normal) var(--ios-spring-soft),
+    right var(--ios-duration-normal) var(--ios-spring-soft),
+    border-radius var(--ios-duration-normal) var(--ios-spring-soft),
+    opacity var(--ios-duration-normal) var(--ios-ease-standard);
+}
+
+/* Opening — чуть дольше, с лёгким overshoot */
+.floating-drawer.open {
+  transition:
+    transform var(--ios-duration-slow) var(--ios-spring-medium),
+    width var(--ios-duration-slow) var(--ios-spring-medium),
+    height var(--ios-duration-slow) var(--ios-spring-medium),
+    bottom var(--ios-duration-slow) var(--ios-spring-medium),
+    top var(--ios-duration-slow) var(--ios-spring-medium),
+    left var(--ios-duration-slow) var(--ios-spring-medium),
+    right var(--ios-duration-slow) var(--ios-spring-medium),
+    border-radius var(--ios-duration-slow) var(--ios-spring-medium),
+    opacity var(--ios-duration-slow) var(--ios-ease-standard);
 }
 
 /* Drawer Header */
@@ -193,7 +260,7 @@ body, html {
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  transition: all 0.2s;
+  transition: color var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .btn-icon-close:hover {
@@ -289,7 +356,7 @@ body, html {
   align-items: center;
   justify-content: center;
   z-index: 500;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform var(--ios-duration-quick) var(--ios-spring-medium), background-color var(--ios-duration-normal) var(--ios-ease-decelerate), color var(--ios-duration-normal) var(--ios-ease-decelerate), border-color var(--ios-duration-normal) var(--ios-ease-decelerate), box-shadow var(--ios-duration-normal) var(--ios-ease-decelerate);
 }
 
 .floating-btn:hover {
@@ -399,7 +466,8 @@ body, html {
 .settings-drawer.open {
   left: 280px;
   width: 240px;
-  height: calc(100vh - 40px);
+  height: fit-content;
+  max-height: calc(100vh - 40px);
   border-radius: 16px;
   z-index: 1002; /* Stack above left menu drawer when opened next to it */
 }
@@ -419,7 +487,8 @@ body, html {
 .settings-sub-panel.open {
   left: 540px;        /* 280 (left menu) + 240 (settings nav) + 20 (gap) */
   width: 380px;
-  height: calc(100vh - 40px);
+  height: fit-content;
+  max-height: calc(100vh - 40px);
   border-radius: 16px;
   opacity: 1;
   pointer-events: auto;
@@ -459,15 +528,31 @@ body, html {
   width: 100px;
   height: 38px;
   border-radius: 19px;
-  transition: all 0.38s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s;
+  transition:
+    width 0.42s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.42s cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 0.42s cubic-bezier(0.16, 1, 0.3, 1),
+    bottom 0.42s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .help-drawer:not(.open):hover {
   transform: translate(-50%, -4px);
+  transition:
+    width 0.42s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.42s cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 0.42s cubic-bezier(0.16, 1, 0.3, 1),
+    bottom 0.42s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .help-drawer.open {
-  bottom: 80px; /* floats slightly above help button */
+  bottom: 80px;
   width: min(480px, 92vw);
   height: min(550px, 75vh);
   border-radius: 16px;
@@ -507,7 +592,7 @@ body, html {
   gap: 12px;
   font-size: 13px;
   font-weight: 500;
-  transition: all 0.2s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard);
   width: 100%;
   text-align: left;
 }
@@ -572,7 +657,7 @@ body, html {
   color: var(--text-primary);
   font-size: 13px;
   outline: none;
-  transition: all 0.2s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
   width: 100%;
 }
 
@@ -593,7 +678,7 @@ body, html {
   border: 1px solid var(--border-light);
   outline: none;
   margin: 12px 0;
-  transition: all 0.2s;
+  transition: border-color var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .settings-slider-input:hover {
@@ -659,7 +744,7 @@ body, html {
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), box-shadow var(--ios-duration-quick) var(--ios-ease-standard);
   width: 100%;
 }
 
@@ -685,7 +770,7 @@ body, html {
   padding: 16px 20px;
   font-size: 14px;
   font-weight: 600;
-  transition: all 0.2s;
+  transition: color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .mode-tab:hover {
@@ -698,11 +783,26 @@ body, html {
 }
 
 .creation-content-wrapper {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.creation-scroll-area {
   padding: 24px;
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0; /* critical: allows flex child to shrink and scroll */
   overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.creation-scroll-area > * {
+  flex-shrink: 0;
 }
 
 .prompt-section-label {
@@ -798,7 +898,7 @@ body, html {
   display: flex;
   align-items: center;
   gap: 6px;
-  transition: all 0.2s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .tag-chip:hover {
@@ -833,6 +933,11 @@ body, html {
   height: 380px;
   margin-bottom: 16px;
   overflow: hidden;
+  transition: height 0.3s ease;
+}
+
+.advanced-panel.expanded {
+  height: 600px;
 }
 
 .advanced-panel.hidden {
@@ -844,14 +949,22 @@ body, html {
   border-bottom: 1px solid var(--border-light);
   display: flex;
   flex-direction: row;
-  overflow-x: auto;
-  overflow-y: hidden;
+  align-items: stretch;
   width: 100%;
   flex-shrink: 0;
-  white-space: nowrap;
 }
 
-.tags-categories-bar::-webkit-scrollbar {
+/* Scrollable area for category tab buttons */
+.category-tabs-scroll {
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 1;
+  min-width: 0;
+}
+
+.category-tabs-scroll::-webkit-scrollbar {
   height: 4px;
 }
 
@@ -865,8 +978,9 @@ body, html {
   font-size: 12px;
   font-weight: 500;
   text-align: center;
-  transition: all 0.2s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .category-tab-btn:hover {
@@ -878,6 +992,27 @@ body, html {
   background: var(--bg-hover);
   color: var(--text-accent);
   border-bottom-color: var(--text-primary);
+}
+
+/* Expand button is a fixed flex-sibling outside the scroll area */
+.expand-tab-btn {
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  color: var(--text-tertiary);
+  border: none;
+  border-left: 1px solid var(--border-light);
+  border-bottom: 2px solid transparent;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard);
+}
+
+.expand-tab-btn:hover {
+  color: var(--text-accent);
+  background: var(--bg-hover);
 }
 
 .tags-grid-container {
@@ -893,6 +1028,9 @@ body, html {
   color: var(--text-tertiary);
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .tags-grid {
@@ -914,7 +1052,7 @@ body, html {
   padding: 6px 10px;
   font-size: 12px;
   text-align: center;
-  transition: all 0.2s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -976,7 +1114,7 @@ body, html {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  transition: all 0.3s ease;
+  transition: opacity var(--ios-duration-normal) var(--ios-ease-standard);
 }
 
 .subcategory-tags-container.collapsed {
@@ -1033,7 +1171,7 @@ body, html {
   font-size: 13px;
   outline: none;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
   min-width: 130px;
 }
 
@@ -1058,7 +1196,7 @@ body, html {
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 500;
-  transition: all 0.2s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard), box-shadow var(--ios-duration-quick) var(--ios-ease-standard);
   user-select: none;
   font-family: 'Outfit', monospace;
 }
@@ -1092,7 +1230,12 @@ body, html {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: auto;
+  flex-shrink: 0;
+  padding: 14px 24px;
+  background: rgba(33, 33, 33, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-top: 1px solid var(--border-light);
 }
 
 /* Surprise me split button */
@@ -1234,7 +1377,7 @@ body, html {
   outline: none;
   cursor: pointer;
   position: relative;
-  transition: all 0.2s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .surprise-category-item input[type="checkbox"]:checked {
@@ -1277,7 +1420,7 @@ body, html {
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: all 0.2s;
+  transition: transform var(--ios-duration-quick) var(--ios-spring-medium), background-color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .btn-secondary-action:hover {
@@ -1308,7 +1451,7 @@ body, html {
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: all 0.2s;
+  transition: transform var(--ios-duration-quick) var(--ios-spring-medium), background-color var(--ios-duration-quick) var(--ios-ease-standard), box-shadow var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .btn-generate-art:hover {
@@ -1345,21 +1488,170 @@ body, html {
 .loader-circle-container {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 20px;
 }
 
 .loader-circle-spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid var(--border-light);
-  border-top-color: var(--text-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+  display: none !important;
+}
+
+/* NEW: iOS-style shimmer bar */
+.ios-shimmer-bar {
+  width: 200px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2.5px;
+  overflow: visible; /* Allow progress glow to spread outside the bar */
+  position: relative;
+  margin-top: 16px;
+}
+
+.ios-shimmer-progress {
+  height: 100%;
+  width: 0%;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 2.5px;
+  position: relative;
+  overflow: hidden; /* Keeps the ::after sweep shimmer clipped to the progress width */
+  transition: width 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
+  /* Premium white glow with layered blur */
+  box-shadow: 
+    0 0 10px rgba(255, 255, 255, 0.65),
+    0 0 20px rgba(255, 255, 255, 0.35);
+}
+
+.ios-shimmer-progress::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.85) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: progressSweep 2.5s infinite linear;
+}
+
+@keyframes progressSweep {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Progress option */
+.ios-progress-bar {
+  width: 200px;
+  height: 4px;
+  background: var(--border-light);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 16px;
+}
+
+.ios-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--accent-secondary),
+    var(--text-primary)
+  );
+  background-size: 200% 100%;
+  animation: iosShimmer 1.5s ease-in-out infinite;
+  transition: width var(--ios-duration-normal) var(--ios-spring-soft);
+  border-radius: 2px;
+}
+
+/*
+  Animated custom property for the wipe position.
+  @property allows the browser to smoothly interpolate the value
+  when it is used inside a gradient stop — giving a SOFT feathered edge.
+  Without @property the browser cannot interpolate custom props in gradients.
+*/
+@property --loader-wipe-pos {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: -20%;
 }
 
 .loader-stage-text {
   font-size: 14px;
   color: var(--text-secondary);
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  text-align: center;
+  min-height: 20px;
+}
+
+.stage-text-span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Stable fully-visible resting state — no mask */
+.stage-text-span.active {
+  pointer-events: auto;
+}
+
+/*
+  ENTERING: text reveals left → right.
+  Gradient: left side = black (visible), right side = transparent (hidden).
+  The boundary (--loader-wipe-pos) animates from -20% → 100%.
+  At -20%: entire element is transparent (hidden).
+  At 100%: entire element is black (fully visible).
+  The ~20% gradient zone creates a SOFT feathered edge sweeping right.
+*/
+.stage-text-span.stage-text-entering {
+  --loader-wipe-pos: -35%;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    black                            0%,
+    black                            var(--loader-wipe-pos),
+    transparent calc(var(--loader-wipe-pos) + 35%),
+    transparent                      100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    black                            0%,
+    black                            var(--loader-wipe-pos),
+    transparent calc(var(--loader-wipe-pos) + 35%),
+    transparent                      100%
+  );
+  transition: --loader-wipe-pos 0.55s ease-in-out;
+}
+
+/*
+  EXITING: text disappears left → right.
+  Gradient: left side = transparent (hidden), right side = black (visible).
+  The boundary (--loader-wipe-pos) animates from -20% → 100%.
+  At -20%: entire element is black (fully visible).
+  At 100%: entire element is transparent (hidden).
+  The ~20% gradient zone creates a SOFT feathered edge sweeping right.
+*/
+.stage-text-span.stage-text-exiting {
+  --loader-wipe-pos: -35%;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent                      0%,
+    transparent                      var(--loader-wipe-pos),
+    black       calc(var(--loader-wipe-pos) + 35%),
+    black                            100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent                      0%,
+    transparent                      var(--loader-wipe-pos),
+    black       calc(var(--loader-wipe-pos) + 35%),
+    black                            100%
+  );
+  transition: --loader-wipe-pos 0.55s ease-in-out;
 }
 
 .btn-cancel-generation {
@@ -1371,7 +1663,7 @@ body, html {
   border-radius: 999px;
   padding: 10px 24px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard);
   font-weight: 500;
 }
 
@@ -1447,7 +1739,7 @@ body, html {
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: all 0.2s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard), box-shadow var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .post-action-btn:hover {
@@ -1645,7 +1937,7 @@ body, html {
   padding: 6px 10px;
   font-size: 10px;
   font-weight: 600;
-  transition: all 0.2s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .action-suggest-btn.accept {
@@ -1687,7 +1979,7 @@ body, html {
   padding: 8px 16px;
   font-size: 13px;
   flex: 1;
-  transition: all 0.2s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .chat-input-field:focus {
@@ -1706,7 +1998,7 @@ body, html {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: transform var(--ios-duration-quick) var(--ios-spring-medium), background-color var(--ios-duration-quick) var(--ios-ease-standard);
   flex-shrink: 0;
 }
 
@@ -1751,7 +2043,7 @@ body, html {
   overflow: hidden;
   box-shadow: var(--shadow-sm);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: transform var(--ios-duration-quick) var(--ios-spring-medium), border-color var(--ios-duration-quick) var(--ios-ease-standard), box-shadow var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .gallery-item-card:hover {
@@ -1783,6 +2075,43 @@ body, html {
   opacity: 1;
 }
 
+/* Lineage grouping styles */
+.gallery-item-card.has-children {
+  outline: 2px solid var(--accent, #7c6bff);
+  outline-offset: 2px;
+}
+
+.gallery-item-card .edits-badge {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background: var(--accent, #7c6bff);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 3;
+  line-height: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+.gallery-item-card.child-card {
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gallery-item-card.child-card.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.gallery-item-card.child-card.hidden-child {
+  display: none;
+}
+
 .gallery-item-action-btn {
   background: rgba(255,255,255,0.1);
   border: 1px solid rgba(255,255,255,0.2);
@@ -1794,7 +2123,7 @@ body, html {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: transform var(--ios-duration-quick) var(--ios-spring-medium), background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .gallery-item-action-btn:hover {
@@ -1822,13 +2151,15 @@ body, html {
   object-fit: cover;
   border-radius: 12px;
   box-shadow: 0 12px 36px rgba(0,0,0,0.6);
+  transform: translateZ(0);
+  will-change: transform, width, height, opacity;
+  backface-visibility: hidden;
   transition: 
-    left 0.8s cubic-bezier(0.25, 1, 0.5, 1),
-    top 0.8s cubic-bezier(0.25, 1, 0.5, 1),
-    width 0.8s cubic-bezier(0.25, 1, 0.5, 1),
-    height 0.8s cubic-bezier(0.25, 1, 0.5, 1),
-    opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1),
-    border-radius 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+    transform var(--ios-duration-slow) var(--ios-spring-medium),
+    width var(--ios-duration-slow) var(--ios-spring-medium),
+    height var(--ios-duration-slow) var(--ios-spring-medium),
+    opacity var(--ios-duration-normal) var(--ios-ease-standard),
+    border-radius var(--ios-duration-slow) var(--ios-spring-medium);
 }
 
 .morphing-preview-clone {
@@ -1838,18 +2169,24 @@ body, html {
   object-fit: contain;
   border-radius: 16px;
   box-shadow: var(--shadow-lg), 0 0 20px rgba(6, 182, 212, 0.15);
+  transform: translateZ(0);
+  will-change: transform, width, height, opacity;
+  backface-visibility: hidden;
   transition: 
-    left var(--transition-spring),
-    top var(--transition-spring),
-    width var(--transition-spring),
-    height var(--transition-spring),
-    border-radius var(--transition-spring),
-    opacity 0.4s ease;
+    transform var(--ios-duration-slow) var(--ios-spring-medium),
+    width var(--ios-duration-slow) var(--ios-spring-medium),
+    height var(--ios-duration-slow) var(--ios-spring-medium),
+    border-radius var(--ios-duration-slow) var(--ios-spring-medium),
+    opacity var(--ios-duration-normal) var(--ios-ease-standard);
 }
 
 .just-added-flying {
   opacity: 0 !important;
   pointer-events: none !important;
+}
+
+.gallery-item-card.no-entry-anim {
+  animation: none !important;
 }
 
 /* ─── Toast Notifications ────────────────────────────────────────── */
@@ -1875,8 +2212,9 @@ body, html {
   display: flex;
   align-items: center;
   gap: 10px;
-  animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideUpFade var(--ios-duration-normal) var(--ios-spring-medium) forwards;
   pointer-events: auto;
+  will-change: transform, opacity;
 }
 
 .toast-message.success {
@@ -1891,14 +2229,25 @@ body, html {
   border-left: 3px solid var(--text-primary);
 }
 
-@keyframes slideInUp {
+@keyframes slideUpFade {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(20px) scale(0.95);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toastExit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(15px) scale(0.95);
   }
 }
 
@@ -1966,7 +2315,7 @@ body, html {
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  transition: all 0.2s ease;
+  transition: color var(--ios-duration-quick) var(--ios-ease-standard), background-color var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .btn-addon-delete-cat:hover {
@@ -2079,7 +2428,7 @@ body, html {
   height: 100%;
   object-fit: cover;
   opacity: 0.35;
-  filter: blur(2px);
+  filter: blur(10px); /* Increased blur for a smoother, premium background aesthetic */
   pointer-events: none;
   z-index: 1;
   transition: opacity 0.5s ease;
@@ -2140,7 +2489,7 @@ body, html {
   justify-content: center;
   font-size: 28px;
   line-height: 1;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform var(--ios-duration-quick) var(--ios-spring-medium), background-color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   z-index: 10002;
@@ -2175,12 +2524,18 @@ body, html {
   max-height: 92vh;
   object-fit: contain;
   transform-origin: center center;
-  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), left 0s, top 0s;
+  transition: transform var(--ios-duration-normal) var(--ios-spring-soft);
   position: relative;
   user-select: none;
   -webkit-user-drag: none;
   border-radius: 8px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+.lightbox-content.dragging img {
+  transition: none !important;
 }
 
 .lightbox-controls {
@@ -2213,7 +2568,7 @@ body, html {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: all 0.2s ease;
+  transition: transform var(--ios-duration-quick) var(--ios-spring-medium), background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .lightbox-btn:hover {
@@ -2437,6 +2792,274 @@ body, html {
   color: var(--text-tertiary);
 }
 
+/* Artist tag styles */
+.editor-artist-tag-row {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 12px;
+}
+
+.editor-artist-tag-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.editor-artist-tag-header .editor-settings-label {
+  margin: 0;
+}
+
+.artist-tag-pill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: none;
+  letter-spacing: normal;
+  display: inline-flex;
+  align-items: center;
+}
+
+.artist-tag-pill.found {
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+}
+
+.artist-tag-pill.not-found {
+  background: rgba(231, 76, 60, 0.15);
+  color: #e74c3c;
+}
+
+.artist-tag-pill.inactive {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.artist-tag-pill.hidden {
+  display: none;
+}
+
+/* Tooltip styles */
+.preset-label-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.editor-tooltip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: bold;
+  cursor: help;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard);
+}
+
+.editor-tooltip-icon:hover {
+  background: var(--bg-active);
+  color: var(--text-accent);
+}
+
+.editor-tooltip-text {
+  visibility: hidden;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  width: auto;
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  text-align: left;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 11px;
+  line-height: 1.4;
+  z-index: 999;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 6px;
+}
+
+.editor-tooltip-icon:hover .editor-tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+
+/* Collapsible brush styles */
+.editor-brush-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 12px;
+}
+
+.editor-brush-header .editor-settings-label {
+  margin: 0;
+}
+
+.brush-collapse-arrow {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+.brush-collapse-arrow.collapsed {
+  transform: rotate(-90deg);
+}
+
+.editor-brush-settings-content {
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+  max-height: 800px;
+  opacity: 1;
+}
+
+.editor-brush-settings-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* New presets & switchers styles */
+.editor-preset-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  margin-top: 8px;
+}
+
+.preset-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.preset-buttons-group {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+}
+
+.preset-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
+  font-family: inherit;
+}
+
+.preset-btn:hover {
+  border-color: var(--border-medium);
+  background: var(--bg-hover);
+}
+
+.preset-btn.active {
+  background: var(--bg-active);
+  border-color: var(--border-accent);
+  color: var(--text-accent);
+}
+
+.preset-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.preset-desc {
+  font-size: 9px;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.edit-pro-mode-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  margin-top: 8px;
+  position: relative;
+}
+
+.edit-pro-mode-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.edit-pro-mode-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
+  font-family: inherit;
+}
+
+.edit-pro-mode-btn:hover {
+  border-color: var(--border-medium);
+  background: var(--bg-hover);
+}
+
+.edit-pro-mode-btn.active {
+  background: var(--bg-active);
+  border-color: var(--border-accent);
+  color: var(--text-accent);
+}
+
+.edit-pro-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 8px 12px;
+  line-height: 1.5;
+  border-left: 3px solid var(--border-accent);
+}
+
+.edit-pro-hint strong {
+  color: var(--text-accent);
+}
+
+.edit-pro-hint em {
+  color: var(--text-primary);
+  font-style: normal;
+}
+
+
 .editor-mode-toggle-group {
   display: flex;
   background: var(--bg-secondary);
@@ -2456,7 +3079,7 @@ body, html {
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard), box-shadow var(--ios-duration-quick) var(--ios-ease-standard);
   white-space: nowrap;
 }
 
@@ -2545,7 +3168,7 @@ body, html {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: all 0.2s ease;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
   width: 100%;
 }
 
@@ -2576,7 +3199,7 @@ body, html {
   flex-direction: column;
   gap: 12px;
   position: relative;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition: background-color var(--ios-duration-normal) var(--ios-ease-standard), border-color var(--ios-duration-normal) var(--ios-ease-standard), box-shadow var(--ios-duration-normal) var(--ios-ease-standard), opacity var(--ios-duration-normal) var(--ios-ease-standard), filter var(--ios-duration-normal) var(--ios-ease-standard);
   box-shadow: var(--shadow-sm);
 }
 
@@ -2620,7 +3243,7 @@ body, html {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  transition: all 0.2s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
   width: 100%;
   text-align: left;
   user-select: none;
@@ -2706,7 +3329,7 @@ body, html {
   font-size: 12px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), color var(--ios-duration-quick) var(--ios-ease-standard);
   border-bottom: 1px solid rgba(255, 255, 255, 0.02);
 }
 
@@ -2743,7 +3366,7 @@ body, html {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: color var(--ios-duration-quick) var(--ios-ease-standard), background-color var(--ios-duration-quick) var(--ios-ease-standard);
 }
 
 .lora-item-pin:hover {
@@ -2772,7 +3395,7 @@ body, html {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: all 0.2s;
+  transition: color var(--ios-duration-quick) var(--ios-ease-standard), background-color var(--ios-duration-quick) var(--ios-ease-standard);
   position: absolute;
   top: 10px;
   right: 10px;
@@ -2955,6 +3578,58 @@ body, html {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+/* Group Edits toggle */
+.album-group-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.album-group-toggle-input {
+  display: none;
+}
+
+.album-group-toggle-slider {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  background: var(--bg-tertiary, #333);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  transition: background 0.25s ease;
+  flex-shrink: 0;
+}
+
+.album-group-toggle-slider::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-tertiary, #888);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.25s ease;
+}
+
+.album-group-toggle-input:checked + .album-group-toggle-slider {
+  background: var(--accent, #7c6bff);
+  border-color: var(--accent, #7c6bff);
+}
+
+.album-group-toggle-input:checked + .album-group-toggle-slider::after {
+  transform: translateX(16px);
+  background: #fff;
+}
+
+.album-group-toggle-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 .album-header-title {
@@ -3142,3 +3817,274 @@ body, html {
 #editor-mask-canvas {
   opacity: 0.5;
 }
+
+/* ─── Lineage Tree Overlay ────────────────────────────────────────── */
+.lineage-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.lineage-header {
+  position: absolute;
+  top: 0; left: 0; width: 100%;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+}
+
+.lineage-title {
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.lineage-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.lineage-container:active {
+  cursor: grabbing;
+}
+
+.lineage-svg-canvas, .lineage-nodes-wrapper {
+  position: absolute;
+  top: 0; left: 0;
+  transform-origin: 0 0;
+}
+
+.lineage-svg-canvas {
+  z-index: 1;
+  pointer-events: none; /* Let clicks pass through */
+}
+
+.lineage-nodes-wrapper {
+  z-index: 2;
+  pointer-events: none;
+}
+
+.tree-link {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 3px;
+  stroke-linecap: round;
+}
+
+.tree-node {
+  position: absolute;
+  width: 150px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  border: 2px solid transparent;
+  pointer-events: auto;
+  transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s;
+}
+
+.tree-node:hover {
+  transform: scale(1.05);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.tree-node.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.5);
+}
+
+.tree-node img {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  display: block;
+}
+
+.tree-node-info {
+  padding: 12px 8px;
+  display: flex;
+  justify-content: center;
+}
+
+.tree-node-edit {
+  background: var(--bg-tertiary);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background-color var(--ios-duration-quick) var(--ios-ease-standard), border-color var(--ios-duration-quick) var(--ios-ease-standard);
+}
+
+.tree-node-edit:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.lineage-controls {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 15px;
+  z-index: 1001;
+  background: rgba(0,0,0,0.6);
+  padding: 10px 20px;
+  border-radius: 30px;
+  backdrop-filter: blur(5px);
+}
+
+.tree-prompt-foreign {
+  pointer-events: auto;
+  overflow: visible;
+}
+
+.tree-prompt-box {
+  background: rgba(30, 30, 35, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ddd;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  width: 200px;
+  box-sizing: border-box;
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  
+  /* Text truncate by default */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  
+  /* Animation like Show Album */
+  transition: transform var(--ios-duration-normal) var(--ios-ease-decelerate), max-height var(--ios-duration-normal) var(--ios-ease-decelerate), border-color var(--ios-duration-normal) var(--ios-ease-decelerate), box-shadow var(--ios-duration-normal) var(--ios-ease-decelerate);
+  transform-origin: center;
+  max-height: 50px;
+}
+
+.tree-prompt-box:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.02);
+}
+
+.tree-prompt-box.expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+  max-height: 500px; /* arbitrary large value */
+  z-index: 10;
+  position: relative;
+  transform: scale(1.05);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+/* ═══ NEW: iOS-style blur backdrop ═══ */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0);
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+  transition: 
+    background-color var(--ios-duration-normal) var(--ios-ease-standard),
+    backdrop-filter var(--ios-duration-normal) var(--ios-ease-standard),
+    -webkit-backdrop-filter var(--ios-duration-normal) var(--ios-ease-standard),
+    opacity var(--ios-duration-normal) var(--ios-ease-standard);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 998;
+}
+
+.drawer-backdrop.active {
+  background-color: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: auto;
+  opacity: 1;
+}
+
+/* ═══ NEW: Accessibility — disable animations for users with preferences ═══ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  .flying-art-clone,
+  .morphing-preview-clone {
+    transition: opacity 0.2s ease !important;
+    transform: none !important;
+  }
+  
+  .drawer-backdrop {
+    transition: opacity 0.2s ease !important;
+  }
+  
+  .ios-shimmer-bar::before,
+  .ios-progress-bar-fill {
+    animation: none !important;
+  }
+}
+
+/* ═══ NEW: Staggered animation for grid items ═══ */
+@keyframes gridItemEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.gallery-item-card,
+.grid-tag-item,
+.resolution-chip,
+.addon-category-row {
+  animation: gridItemEnter var(--ios-duration-normal) var(--ios-spring-soft) backwards;
+}
+
+/* Staggering via nth-child — first 12 elements with 30ms delay step */
+.gallery-item-card:nth-child(1) { animation-delay: 0ms; }
+.gallery-item-card:nth-child(2) { animation-delay: 30ms; }
+.gallery-item-card:nth-child(3) { animation-delay: 60ms; }
+.gallery-item-card:nth-child(4) { animation-delay: 90ms; }
+.gallery-item-card:nth-child(5) { animation-delay: 120ms; }
+.gallery-item-card:nth-child(6) { animation-delay: 150ms; }
+.gallery-item-card:nth-child(7) { animation-delay: 180ms; }
+.gallery-item-card:nth-child(8) { animation-delay: 210ms; }
+.gallery-item-card:nth-child(9) { animation-delay: 240ms; }
+.gallery-item-card:nth-child(10) { animation-delay: 270ms; }
+.gallery-item-card:nth-child(11) { animation-delay: 300ms; }
+.gallery-item-card:nth-child(12) { animation-delay: 330ms; }
+.gallery-item-card:nth-child(n+13) { animation-delay: 360ms; }
+
+/* Tags grid — shorter step delay for fast sequence appearance */
+.grid-tag-item:nth-child(1) { animation-delay: 0ms; }
+.grid-tag-item:nth-child(2) { animation-delay: 20ms; }
+.grid-tag-item:nth-child(3) { animation-delay: 40ms; }
+.grid-tag-item:nth-child(4) { animation-delay: 60ms; }
+.grid-tag-item:nth-child(5) { animation-delay: 80ms; }
+.grid-tag-item:nth-child(6) { animation-delay: 100ms; }
+.grid-tag-item:nth-child(7) { animation-delay: 120ms; }
+.grid-tag-item:nth-child(8) { animation-delay: 140ms; }
+.grid-tag-item:nth-child(n+9) { animation-delay: 160ms; }

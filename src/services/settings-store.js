@@ -13,11 +13,14 @@ const DEFAULTS = {
   comfyui_clip_name: 'qwen_3_06b_base.safetensors',
   comfyui_vae_name: 'qwen_image_vae.safetensors',
   comfyui_lllite_name: 'anima-lllite-inpainting-v2.safetensors',
-  comfyui_lllite_name_img2img: 'anima-lllite-any-test-like-v2.safetensors',
+  comfyui_lllite_name_img2img: '',
   comfyui_lllite_strength: 1.0,
+  comfyui_lllite_strength_edit_pro: 0.85,
   comfyui_free_memory_interval: 3,
   ai_url: 'http://localhost:5001',
-  ai_instructions: 'You are an expert prompt engineer. Help the user create amazing stylized/non-realistic image generation prompts. Strictly avoid realistic styling, photorealism, and terms like "photorealistic", "realistic", "realism", "8k", "4k", "soft shadows", "ultra detailed textures", "unreal engine", "octane render".'
+  ai_instructions: 'You are an expert prompt engineer. Help the user create amazing stylized/non-realistic image generation prompts. Strictly avoid realistic styling, photorealism, and terms like "photorealistic", "realistic", "realism", "8k", "4k", "soft shadows", "ultra detailed textures", "unreal engine", "octane render".',
+  gelbooru_api_key: '',
+  gelbooru_user_id: ''
 };
 
 let settings = { ...DEFAULTS };
