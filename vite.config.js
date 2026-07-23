@@ -23,6 +23,40 @@ function comfygenPersistencePlugin() {
   const middleware = (req, res, next) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     
+    if (req.method === 'GET' && url.pathname === '/api/char-search') {
+      const q = url.searchParams.get('q') || '';
+      const sort = url.searchParams.get('sort') || 'count';
+      const page = url.searchParams.get('page') || '1';
+      const seed = url.searchParams.get('seed') || '';
+      
+      const seedParam = seed ? `&seed=${seed}` : '';
+      const targetUrl = `https://animadex.net/api/characters/search?q=${encodeURIComponent(q)}&sort=${sort}&page=${page}${seedParam}`;
+      
+      fetch(targetUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Animadex returned HTTP ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          res.writeHead(200, { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*' 
+          });
+          res.end(JSON.stringify(data));
+        })
+        .catch(err => {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        });
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname === '/api/gelbooru-extract') {
       const postId = url.searchParams.get('id');
       if (!postId) {

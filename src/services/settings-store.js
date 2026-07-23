@@ -10,6 +10,7 @@ const DEFAULTS = {
   comfyui_sampler: 'euler',
   comfyui_scheduler: 'normal',
   comfyui_unet_name: 'anima_baseV10.safetensors',
+  comfyui_unet_models: ['anima_baseV10.safetensors'],
   comfyui_clip_name: 'qwen_3_06b_base.safetensors',
   comfyui_vae_name: 'qwen_image_vae.safetensors',
   comfyui_lllite_name: 'anima-lllite-inpainting-v2.safetensors',
@@ -17,10 +18,16 @@ const DEFAULTS = {
   comfyui_lllite_strength: 1.0,
   comfyui_lllite_strength_edit_pro: 0.85,
   comfyui_free_memory_interval: 3,
+  comfyui_batch_size: 1,
+  comfyui_aspect_ratio: '1:1 (Square)',
+  comfyui_megapixels: 1.0,
+  comfyui_multiple: 16,
   ai_url: 'http://localhost:5001',
-  ai_instructions: 'You are an expert prompt engineer. Help the user create amazing stylized/non-realistic image generation prompts. Strictly avoid realistic styling, photorealism, and terms like "photorealistic", "realistic", "realism", "8k", "4k", "soft shadows", "ultra detailed textures", "unreal engine", "octane render".',
+  ai_instructions: 'You are Anima Studio AI Assistant, an expert art director helping the user generate pictures using the Anima diffusion model. Help the user create amazing stylized/non-realistic image generation prompts. Avoid realistic styling/photorealism. Guide the user to use natural language descriptions for scenes, poses, and actions instead of lists of raw tags. Help them structure prompts in the Anima model\'s preferred tag order: [quality/meta/year/safety tags] [1girl/1boy/1other etc] [character] [series] [artist] [general tags/natural description]. Keep all suggestions suited for stylized anime art/drawings.',
   gelbooru_api_key: '',
-  gelbooru_user_id: ''
+  gelbooru_user_id: '',
+  comfyui_positive_prompt_prefix: 'Masterpiece, good quality',
+  model_settings: {}
 };
 
 let settings = { ...DEFAULTS };

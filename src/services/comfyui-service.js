@@ -58,7 +58,7 @@ function buildAnimaWorkflow(prompt, negPrompt, settings, loras = []) {
       "inputs": {
         "width": width,
         "height": height,
-        "batch_size": 1
+        "batch_size": settings.comfyui_batch_size ?? 1
       }
     },
     "7": {
@@ -84,10 +84,9 @@ function buildAnimaWorkflow(prompt, negPrompt, settings, loras = []) {
       }
     },
     "9": {
-      "class_type": "SaveImage",
+      "class_type": "PreviewImage",
       "inputs": {
-        "images": ["8", 0],
-        "filename_prefix": "comfygen_"
+        "images": ["8", 0]
       }
     }
   };
@@ -328,10 +327,9 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
   };
   
   workflow["9"] = {
-    "class_type": "SaveImage",
+    "class_type": "PreviewImage",
     "inputs": {
-      "images": ["8", 0],
-      "filename_prefix": "comfygen_edit_"
+      "images": ["8", 0]
     }
   };
 
@@ -341,7 +339,7 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
 /**
  * Build the Anima Edit Pro workflow (Split-Screen Outpainting)
  */
-function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, denoise, loras = [], editMode = 'global') {
+function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, denoise, loras = [], editMode = 'global', customSettings = null) {
   const seed = Math.floor(Math.random() * 2 ** 32);
   const steps = settings.comfyui_steps ?? 30;
   const cfg = settings.comfyui_cfg ?? 4.5;
@@ -355,10 +353,21 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
     ?? settings.comfyui_lllite_strength 
     ?? 0.85;
 
+  const isCustom = editMode === 'custom' && customSettings;
+  const resizeMethod = isCustom ? customSettings.resizeMethod : 'keep-proportion-no-rounding';
+  const improvedPrompt = isCustom ? customSettings.improvedPrompt : false;
+  const negPromptFix = isCustom ? customSettings.negPromptFix : false;
+
   const stylePrompt = "masterpiece, best quality, very aesthetic, highly detailed";
   
   let instructions;
-  if (editMode === 'details') {
+  if (isCustom) {
+    if (improvedPrompt) {
+      instructions = `split screen, side-by-side comparison, two panels of the same scene, left panel: original reference image, right panel: ${prompt}, same background as left panel, same lighting, same color palette, same art style, anime illustration, seamless transition between panels`;
+    } else {
+      instructions = `split screen, comparison view, left: original reference image, right: ${prompt}, same character, same style, anime illustration`;
+    }
+  } else if (editMode === 'details') {
     // Details mode: сохранить композицию, добавить/уточнить детали
     instructions = `split screen, comparison view, left: original reference image, right: same composition with refined details - ${prompt}, anime illustration`;
   } else {
@@ -367,6 +376,11 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
   }
   
   const finalPrompt = `${stylePrompt}, ${instructions}`;
+
+  let finalNegPrompt = negPrompt || "lowres, bad anatomy, worst quality, blurry, watermark";
+  if (negPromptFix) {
+    finalNegPrompt += ", black background, dark background, solid black, cropped edges, border artifacts, seam, dividing line, disconnected panels, mismatched lighting, mismatched background";
+  }
 
   let currentModel = ["1", 0];
   let currentClip = ["2", 0];
@@ -390,7 +404,7 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
     },
     "5": {
       "class_type": "CLIPTextEncode",
-      "inputs": { "text": negPrompt || "lowres, bad anatomy, worst quality, blurry, watermark", "clip": null }
+      "inputs": { "text": finalNegPrompt, "clip": null }
     },
     "10": {
       "class_type": "LoadImage",
@@ -424,14 +438,15 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
       "class_type": "ImageResize+",
       "inputs": {
         "width": 1024, "height": 1024, "interpolation": "lanczos",
-        "method": "keep proportion", "condition": "always", "multiple_of": 0,
+        "method": resizeMethod === 'stretch' ? "stretch to aspect ratio" : "keep proportion",
+        "condition": "always", "multiple_of": resizeMethod === 'keep-proportion-64' ? 64 : 0,
         "image": ["10", 0]
       }
     },
     "51": {
       "class_type": "ImagePadKJ",
       "inputs": {
-        "left": 0, "right": 48, "top": 0, "bottom": 0,
+        "left": 0, "right": isCustom ? customSettings.paddingWidth : 48, "top": 0, "bottom": 0,
         "extra_padding": 0, "pad_mode": "color", "color": "1,1,1",
         "image": ["15", 0]
       }
@@ -454,7 +469,8 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
     "50": {
       "class_type": "InpaintModelConditioning",
       "inputs": {
-        "noise_mask": true, "positive": ["4", 0], "negative": ["5", 0],
+        "noise_mask": isCustom ? customSettings.noiseMask : true,
+        "positive": ["4", 0], "negative": ["5", 0],
         "vae": ["3", 0], "pixels": ["12", 0], "mask": ["12", 2]
       }
     },
@@ -462,7 +478,8 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
       "class_type": "KSampler",
       "inputs": {
         "seed": seed, "steps": steps, "cfg": cfg, "sampler_name": sampler,
-        "scheduler": scheduler, "denoise": denoise, "model": ["6", 0],
+        "scheduler": scheduler, "denoise": (isCustom && customSettings.denoiseCap) ? Math.min(denoise, 0.92) : denoise,
+        "model": ["6", 0],
         "positive": ["50", 0], "negative": ["50", 1], "latent_image": ["50", 2]
       }
     },
@@ -482,15 +499,430 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
       }
     },
     "9": {
-      "class_type": "SaveImage",
+      "class_type": "PreviewImage",
       "inputs": {
-        "images": ["40", 0],
-        "filename_prefix": "comfygen_edit_pro_"
+        "images": ["40", 0]
       }
     }
   });
 
   return workflow;
+}
+
+/**
+ * Build the Wan 2.2 Image-to-Video Workflow
+ */
+function buildWanVideoWorkflow(prompt, negPrompt, sourceFilename, videoWidth, videoHeight, videoLength, steps = 4, cfg = 1.0, seed = null) {
+  const finalSeed = seed !== null ? seed : Math.floor(Math.random() * 2 ** 32);
+
+  const workflow = {
+    "7": {
+      "inputs": {
+        "text": negPrompt || "",
+        "clip": ["38", 0]
+      },
+      "class_type": "CLIPTextEncode",
+      "_meta": { "title": "Negative" }
+    },
+    "38": {
+      "inputs": {
+        "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+        "type": "wan",
+        "device": "default"
+      },
+      "class_type": "CLIPLoader",
+      "_meta": { "title": "Load CLIP" }
+    },
+    "39": {
+      "inputs": {
+        "vae_name": "wan_2.1_vae.safetensors"
+      },
+      "class_type": "VAELoader",
+      "_meta": { "title": "Load VAE" }
+    },
+    "50": {
+      "inputs": {
+        "width": videoWidth,
+        "height": videoHeight,
+        "length": videoLength,
+        "batch_size": 1,
+        "positive": ["160", 0],
+        "negative": ["7", 0],
+        "vae": ["39", 0],
+        "start_image": ["140", 0]
+      },
+      "class_type": "WanImageToVideo",
+      "_meta": { "title": "WanImageToVideo" }
+    },
+    "54": {
+      "inputs": {
+        "shift": 8,
+        "model": ["109", 0]
+      },
+      "class_type": "ModelSamplingSD3",
+      "_meta": { "title": "ModelSamplingSD3" }
+    },
+    "55": {
+      "inputs": {
+        "shift": 8,
+        "model": ["110", 0]
+      },
+      "class_type": "ModelSamplingSD3",
+      "_meta": { "title": "ModelSamplingSD3" }
+    },
+    "57": {
+      "inputs": {
+        "add_noise": "enable",
+        "noise_seed": ["82", 0],
+        "steps": steps,
+        "cfg": ["147", 0],
+        "sampler_name": "euler",
+        "scheduler": "sgm_uniform",
+        "start_at_step": 0,
+        "end_at_step": ["129", 0],
+        "return_with_leftover_noise": "enable",
+        "model": ["54", 0],
+        "positive": ["50", 0],
+        "negative": ["50", 1],
+        "latent_image": ["50", 2]
+      },
+      "class_type": "KSamplerAdvanced",
+      "_meta": { "title": "KSampler (HIGH)" }
+    },
+    "58": {
+      "inputs": {
+        "add_noise": "disable",
+        "noise_seed": ["82", 0],
+        "steps": steps,
+        "cfg": ["147", 0],
+        "sampler_name": "euler",
+        "scheduler": "sgm_uniform",
+        "start_at_step": ["129", 0],
+        "end_at_step": 10000,
+        "return_with_leftover_noise": "disable",
+        "model": ["228", 0],
+        "positive": ["50", 0],
+        "negative": ["50", 1],
+        "latent_image": ["224", 0]
+      },
+      "class_type": "KSamplerAdvanced",
+      "_meta": { "title": "KSampler (LOW)" }
+    },
+    "63": {
+      "inputs": {
+        "frame_rate": 16,
+        "loop_count": 0,
+        "filename_prefix": `video/${new Date().toISOString().split('T')[0]}/${Date.now()}`,
+        "format": "video/h265-mp4",
+        "pix_fmt": "yuv420p10le",
+        "crf": 22,
+        "save_metadata": true,
+        "pingpong": false,
+        "save_output": true,
+        "images": ["74", 0]
+      },
+      "class_type": "VHS_VideoCombine",
+      "_meta": { "title": "Video Combine 🎥🅥🅗🅢" }
+    },
+    "73": {
+      "inputs": {
+        "anything": ["154", 0]
+      },
+      "class_type": "easy cleanGpuUsed",
+      "_meta": { "title": "Clean VRAM Used" }
+    },
+    "74": {
+      "inputs": {
+        "upscale_method": "lanczos",
+        "scale_by": 2.0,
+        "image": ["73", 0]
+      },
+      "class_type": "ImageScaleBy",
+      "_meta": { "title": "Upscale Image By" }
+    },
+    "82": {
+      "inputs": {
+        "seed": finalSeed
+      },
+      "class_type": "Seed (rgthree)",
+      "_meta": { "title": "Seed (rgthree)" }
+    },
+    "109": {
+      "inputs": {
+        "PowerLoraLoaderHeaderWidget": { "type": "PowerLoraLoaderHeaderWidget" },
+        "➕ Add Lora": "",
+        "model": ["229", 0]
+      },
+      "class_type": "Power Lora Loader (rgthree)",
+      "_meta": { "title": "HIGH LORA LOADER" }
+    },
+    "110": {
+      "inputs": {
+        "PowerLoraLoaderHeaderWidget": { "type": "PowerLoraLoaderHeaderWidget" },
+        "➕ Add Lora": "",
+        "model": ["228", 0]
+      },
+      "class_type": "Power Lora Loader (rgthree)",
+      "_meta": { "title": "LOW LORA LOADER" }
+    },
+    "129": {
+      "inputs": {
+        "a": steps,
+        "b": 2,
+        "operation": "divide"
+      },
+      "class_type": "easy mathInt",
+      "_meta": { "title": "Math Int" }
+    },
+    "140": {
+      "inputs": {
+        "upscale_method": "lanczos",
+        "width": videoWidth,
+        "height": videoHeight,
+        "crop": "disabled",
+        "image": ["172", 0]
+      },
+      "class_type": "ImageScale",
+      "_meta": { "title": "Upscale Image" }
+    },
+    "147": {
+      "inputs": {
+        "value": cfg
+      },
+      "class_type": "PrimitiveFloat",
+      "_meta": { "title": "CFG" }
+    },
+    "154": {
+      "inputs": {
+        "samples": ["58", 0],
+        "vae": ["39", 0]
+      },
+      "class_type": "VAEDecode",
+      "_meta": { "title": "VAE Decode" }
+    },
+    "160": {
+      "inputs": {
+        "text": prompt,
+        "clip": ["38", 0]
+      },
+      "class_type": "CLIPTextEncode",
+      "_meta": { "title": "CLIP Text Encode (Prompt)" }
+    },
+    "167": {
+      "inputs": {
+        "from_direction": "end",
+        "count": 1,
+        "image": ["74", 0]
+      },
+      "class_type": "Pick From Batch (mtb)",
+      "_meta": { "title": "Pick From Batch (mtb)" }
+    },
+    "168": {
+      "inputs": {
+        "filename_prefix": "video_frame",
+        "images": ["167", 0]
+      },
+      "class_type": "SaveImage",
+      "_meta": { "title": "Save Image" }
+    },
+    "169": {
+      "inputs": {
+        "images": ["167", 0]
+      },
+      "class_type": "PreviewImage",
+      "_meta": { "title": "Last Frame Preview" }
+    },
+    "172": {
+      "inputs": {
+        "image": sourceFilename
+      },
+      "class_type": "LoadImage",
+      "_meta": { "title": "Load Image" }
+    },
+    "224": {
+      "inputs": {
+        "value": ["57", 0],
+        "model": ["229", 0]
+      },
+      "class_type": "UnloadModel",
+      "_meta": { "title": "UnloadModel" }
+    },
+    "228": {
+      "inputs": {
+        "unet_name": "DasiwaWAN22I2V14BLightspeed_snatchkissLowV11.safetensors",
+        "weight_dtype": "default"
+      },
+      "class_type": "UNETLoader",
+      "_meta": { "title": "Load Diffusion Model" }
+    },
+    "229": {
+      "inputs": {
+        "unet_name": "DasiwaWAN22I2V14BLightspeed_snatchkissHighV11.safetensors",
+        "weight_dtype": "default"
+      },
+      "class_type": "UNETLoader",
+      "_meta": { "title": "Load Diffusion Model" }
+    }
+  };
+
+  return workflow;
+}
+
+/**
+ * Generate a video using Wan 2.2 Image-to-Video Workflow
+ */
+export async function generateVideoComfyUI(prompt, negPrompt, sourceImageBlob, videoParams, onProgress = () => {}, signal = null) {
+  const settings = settingsStore.get();
+  const baseUrl = (settings.comfyui_url || 'http://localhost:8188').replace(/\/$/, '');
+  const clientId = `comfygen_vid_${Date.now()}`;
+  let promptId = null;
+  let ws = null;
+
+  const cancelOnServer = async () => {
+    try {
+      if (promptId) {
+        await fetch(`${baseUrl}/queue`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ delete: [promptId] })
+        }).catch(() => {});
+      }
+      await fetch(`${baseUrl}/interrupt`, { method: 'POST' }).catch(() => {});
+    } catch (e) {}
+  };
+
+  if (signal) {
+    if (signal.aborted) {
+      cancelOnServer();
+      throw new DOMException('Video generation stopped by user', 'AbortError');
+    }
+    signal.addEventListener('abort', cancelOnServer);
+  }
+
+  try {
+    onProgress('Uploading initial image...');
+    const sourceUpload = await uploadImageToComfyUI(baseUrl, sourceImageBlob, `video_src_${Date.now()}.png`);
+
+    onProgress('Building Wan 2.2 video workflow...');
+    const workflow = buildWanVideoWorkflow(
+      prompt,
+      negPrompt,
+      sourceUpload.name,
+      videoParams.width,
+      videoParams.height,
+      videoParams.length,
+      videoParams.steps ?? 4,
+      videoParams.cfg ?? 1.0,
+      videoParams.seed ?? null
+    );
+
+    // Track execution via WebSocket
+    let currentNode = null;
+    const wsUrl = baseUrl.replace(/^http/, 'ws') + `/ws?clientId=${clientId}`;
+    try {
+      ws = new WebSocket(wsUrl);
+      ws.onmessage = (event) => {
+        try {
+          if (typeof event.data === 'string') {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'executing') {
+              const node = msg.data.node;
+              currentNode = node;
+              if (node === '57') onProgress('Running KSampler (High Pass)...', 10);
+              else if (node === '58') onProgress('Running KSampler (Low Pass)...', 50);
+              else if (node === '154') onProgress('Decoding video frames via VAE...', 92);
+              else if (node === '63') onProgress('Combining video frames to MP4...', 97);
+              else if (node === null) onProgress('Finalizing video...', 100);
+              else onProgress(`Executing video node ${node}...`, 20);
+            } else if (msg.type === 'progress') {
+              const val = msg.data.value;
+              const max = msg.data.max;
+              let overallPct = 10;
+              if (currentNode === '57') {
+                overallPct = 10 + Math.round((val / max) * 40); // 10% to 50%
+              } else if (currentNode === '58') {
+                overallPct = 50 + Math.round((val / max) * 40); // 50% to 90%
+              } else {
+                overallPct = Math.round((val / max) * 100);
+              }
+              onProgress(`Generating Video: Step ${val}/${max}`, overallPct);
+            }
+          }
+        } catch (e) {}
+      };
+    } catch (e) {}
+
+    onProgress('Queueing video prompt...');
+    const queueResp = await fetch(`${baseUrl}/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: clientId, prompt: workflow }),
+      signal
+    });
+
+    if (!queueResp.ok) {
+      const errText = await queueResp.text();
+      throw new Error(`ComfyUI queue error: ${queueResp.status} — ${errText}`);
+    }
+
+    const queueJson = await queueResp.json();
+    promptId = queueJson.prompt_id;
+    if (!promptId) throw new Error('No prompt_id returned for video generation');
+
+    onProgress('Waiting in ComfyUI queue...');
+
+    // Poll history for video output
+    const maxWaitMs = 15 * 60 * 1000; // 15 mins for video
+    const pollIntervalMs = 1500;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWaitMs) {
+      if (signal?.aborted) {
+        throw new DOMException('Video generation stopped by user', 'AbortError');
+      }
+
+      await new Promise(r => setTimeout(r, pollIntervalMs));
+
+      const histResp = await fetch(`${baseUrl}/history/${promptId}`, { signal });
+      if (!histResp.ok) continue;
+
+      const histData = await histResp.json();
+      const promptObj = histData[promptId];
+
+      if (promptObj) {
+        if (promptObj.status && promptObj.status.status_str === 'error') {
+          const details = promptObj.status.messages?.[0] || 'Unknown server error';
+          throw new Error(`ComfyUI video execution failed: ${details}`);
+        }
+
+        const outputs = promptObj.outputs;
+        if (outputs) {
+          // Check VHS Combine node output (node 63)
+          const vhsNode = outputs["63"];
+          if (vhsNode && vhsNode.gifs && vhsNode.gifs.length > 0) {
+            const vid = vhsNode.gifs[0];
+            const videoUrl = `${baseUrl}/view?filename=${encodeURIComponent(vid.filename)}&subfolder=${encodeURIComponent(vid.subfolder || '')}&type=${encodeURIComponent(vid.type || 'output')}`;
+            onProgress('Video ready!');
+            return { videoUrl, filename: vid.filename };
+          }
+          
+          // Fallback to SaveImage node (node 168)
+          const saveNode = outputs["168"];
+          if (saveNode && saveNode.images && saveNode.images.length > 0) {
+            const img = saveNode.images[0];
+            const imageUrl = `${baseUrl}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=${encodeURIComponent(img.type || 'output')}`;
+            onProgress('Last frame ready!');
+            return { imageUrl, filename: img.filename };
+          }
+        }
+      }
+    }
+
+    throw new Error('ComfyUI video generation timed out');
+  } finally {
+    if (ws) ws.close();
+    if (signal) signal.removeEventListener('abort', cancelOnServer);
+  }
 }
 
 /**
@@ -539,7 +971,7 @@ export async function checkComfyUIConnection() {
 export async function generateImageComfyUI(prompt, onProgress = () => {}, signal = null, onPreview = null, editParams = null, loras = []) {
   const settings = settingsStore.get();
   const baseUrl = (settings.comfyui_url || 'http://localhost:8188').replace(/\/$/, '');
-  const negPrompt = settings.comfyui_negative_prompt || 'lowres, bad anatomy, worst quality, blurry, watermark';
+  const negPrompt = settings.comfyui_negative_prompt !== undefined ? settings.comfyui_negative_prompt : 'lowres, bad anatomy, worst quality, blurry, watermark';
   const clientId = `comfygen_${Date.now()}`;
   let promptId = null;
   let ws = null;
@@ -577,6 +1009,27 @@ export async function generateImageComfyUI(prompt, onProgress = () => {}, signal
   }
 
   try {
+    let origW = 0;
+    let origH = 0;
+    if (editParams && editParams.sourceImageBlob) {
+      try {
+        const imgBitmap = await createImageBitmap(editParams.sourceImageBlob);
+        origW = imgBitmap.width;
+        origH = imgBitmap.height;
+        imgBitmap.close();
+      } catch (e) {
+        console.warn("Failed to get image dimensions via ImageBitmap", e);
+      }
+    }
+    
+    let W_raw = 0;
+    let W_resized = 0;
+    if (origW > 0 && origH > 0) {
+      const scale = Math.min(1024 / origW, 1024 / origH);
+      W_raw = Math.floor(origW * scale);
+      W_resized = W_raw - (W_raw % 64);
+    }
+
     onProgress('Building workflow...');
 
     let workflow;
@@ -600,7 +1053,8 @@ export async function generateImageComfyUI(prompt, onProgress = () => {}, signal
           sourceUpload.name,
           editParams.denoise,
           loras,
-          editParams.editProMode || 'global'
+          editParams.editProMode || 'global',
+          editParams.customSettings
         );
       } else {
         workflow = buildAnimaEditWorkflow(
@@ -636,10 +1090,38 @@ export async function generateImageComfyUI(prompt, onProgress = () => {}, signal
                 img.src = URL.createObjectURL(imageBlob);
                 await new Promise(r => img.onload = r);
                 const cvs = document.createElement('canvas');
-                cvs.width = img.width / 2;
+                
+                const isCustom = editParams.editProMode === 'custom';
+                const customSettings = isCustom ? editParams.customSettings : null;
+                const resizeMethod = customSettings ? customSettings.resizeMethod : 'keep-proportion-no-rounding';
+                const paddingWidth = customSettings ? customSettings.paddingWidth : 48;
+                
+                let cropStart = img.width / 2;
+                let cropWidth = img.width / 2;
+                
+                if (resizeMethod === 'stretch') {
+                  const W_resized_stretch = 1024;
+                  const previewScale = img.width / (2 * W_resized_stretch + paddingWidth);
+                  cropStart = (W_resized_stretch + paddingWidth) * previewScale;
+                  cropWidth = W_resized_stretch * previewScale;
+                } else if (resizeMethod === 'keep-proportion-64') {
+                  if (W_resized > 0) {
+                    const previewScale = img.width / (2 * W_resized + paddingWidth);
+                    cropStart = (W_resized + paddingWidth) * previewScale;
+                    cropWidth = W_resized * previewScale;
+                  }
+                } else {
+                  if (W_raw > 0) {
+                    const previewScale = img.width / (2 * W_raw + paddingWidth);
+                    cropStart = (W_raw + paddingWidth) * previewScale;
+                    cropWidth = W_raw * previewScale;
+                  }
+                }
+                
+                cvs.width = cropWidth;
                 cvs.height = img.height;
                 const ctx = cvs.getContext('2d');
-                ctx.drawImage(img, img.width / 2, 0, img.width / 2, img.height, 0, 0, cvs.width, cvs.height);
+                ctx.drawImage(img, cropStart, 0, cropWidth, img.height, 0, 0, cvs.width, cvs.height);
                 onPreview(cvs.toDataURL('image/jpeg'));
                 URL.revokeObjectURL(img.src);
               } else {
@@ -757,11 +1239,12 @@ export async function generateImageComfyUI(prompt, onProgress = () => {}, signal
         // SaveImage output node is "9"
         const saveNode = entry.outputs['9'];
         if (saveNode && saveNode.images && saveNode.images.length > 0) {
-          const img = saveNode.images[0];
-          const imageUrl = `${baseUrl}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=${encodeURIComponent(img.type || 'output')}`;
+          const urls = saveNode.images.map(img => 
+            `${baseUrl}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=${encodeURIComponent(img.type || 'output')}`
+          );
           
           onProgress('Image ready!');
-          return imageUrl;
+          return urls;
         }
       }
     }
@@ -837,3 +1320,181 @@ export async function getAvailableLoras() {
     'eyes_enhancer.safetensors'
   ];
 }
+
+export async function getLoraActivationTags(loraName) {
+  let tags = [];
+  try {
+    const settings = settingsStore.get();
+    const baseUrl = (settings.comfyui_url || 'http://localhost:8188').replace(/\/$/, '');
+    const resp = await fetch(`${baseUrl}/view_metadata/loras?filename=${encodeURIComponent(loraName)}`);
+    if (resp.ok) {
+      const metadata = await resp.json();
+      tags = extractTagsFromMetadata(metadata);
+    }
+  } catch (e) {
+    console.warn(`Failed to fetch LoRA metadata for ${loraName}:`, e);
+  }
+
+  // If we couldn't extract any tags from the metadata or the fetch failed/404ed,
+  // fall back to a cleaned version of the filename itself.
+  if (!tags || tags.length === 0) {
+    const fallback = cleanFilenameToTag(loraName);
+    if (fallback) {
+      tags = [fallback];
+    }
+  }
+
+  return tags;
+}
+
+function cleanFilenameToTag(filename) {
+  if (!filename || typeof filename !== 'string') return '';
+  
+  // Extract just the filename if it is a directory path
+  let baseName = filename.split(/[\\/]/).pop();
+  
+  // Strip standard extensions
+  baseName = baseName.replace(/\.safetensors$/i, '')
+                     .replace(/\.ckpt$/i, '')
+                     .replace(/\.pt$/i, '');
+                     
+  // Replace underscores and dashes with spaces
+  let clean = baseName.replace(/[-_]/g, ' ')
+                      .trim()
+                      .toLowerCase();
+                      
+  // Strip common generic patterns/suffixes and keywords
+  clean = clean.replace(/\b(v\d+(\.\d+)?|alpha\d+(\.\d+)?|rank\d+|noxattn|last|step\d+|epoch\d+|\d+steps|initial\s+release|by\s+\w+|illustrious|xl|pony|flux|sdxl|sd15|sd21|klein|zit|rmx|concept)\b/g, '')
+               .replace(/[\[\]\(\)\{\}]/g, ' ') // Remove brackets
+               .replace(/\s+/g, ' ')
+               .trim();
+               
+  // Filter out completely generic single words
+  const genericWords = new Set(['lora', 'model', 'add', 'detail', 'style', 'enhancer', 'detailer']);
+  if (clean.length <= 2 || genericWords.has(clean)) {
+    return '';
+  }
+  
+  return clean;
+}
+
+function extractTagsFromMetadata(metadata) {
+  if (!metadata) return [];
+  
+  const tags = new Set();
+  
+  // ComfyUI may wrap the safetensors metadata in a __metadata__ field or return it directly
+  let target = metadata;
+  if (metadata.__metadata__) {
+    target = metadata.__metadata__;
+  }
+  
+  const tryParseJSON = (str) => {
+    try {
+      return JSON.parse(str);
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // 1. Kohya ss_tag_frequency
+  if (target.ss_tag_frequency) {
+    const freqData = typeof target.ss_tag_frequency === 'string' 
+      ? tryParseJSON(target.ss_tag_frequency) 
+      : target.ss_tag_frequency;
+      
+    if (freqData && typeof freqData === 'object') {
+      // Determine if freqData is a nested concept dictionary or a flat tag frequency dictionary
+      const isNested = Object.values(freqData).some(v => v && typeof v === 'object');
+      const conceptDicts = isNested ? Object.values(freqData) : [freqData];
+      
+      for (const innerTags of conceptDicts) {
+        if (innerTags && typeof innerTags === 'object') {
+          let maxFreq = 0;
+          const entries = Object.entries(innerTags);
+          for (const [tag, freq] of entries) {
+            if (typeof freq === 'number' && freq > maxFreq) {
+              maxFreq = freq;
+            }
+          }
+          
+          // Select tags that occur frequently (typically the trigger word itself matches the max dataset count)
+          for (const [tag, freq] of entries) {
+            if (typeof freq === 'number' && freq >= maxFreq * 0.85) {
+              const cleanTag = tag.trim().toLowerCase();
+              if (cleanTag && 
+                  cleanTag !== 'masterpiece' && 
+                  cleanTag !== 'best quality' && 
+                  cleanTag !== 'extremely detailed' &&
+                  cleanTag.split(/\s+/).length <= 3) { // Ignore long captions/sentences
+                tags.add(cleanTag);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // 2. ss_activation_tags
+  if (target.ss_activation_tags) {
+    const actTags = String(target.ss_activation_tags).split(',');
+    actTags.forEach(t => {
+      const clean = t.trim().toLowerCase();
+      if (clean && clean.split(/\s+/).length <= 3) tags.add(clean);
+    });
+  }
+  
+  // 3. trained_words, trainedWords, ss_trained_words
+  const trainedWordsKeys = ['trained_words', 'trainedWords', 'ss_trained_words'];
+  trainedWordsKeys.forEach(key => {
+    if (target[key]) {
+      let val = target[key];
+      if (typeof val === 'string') {
+        const parsed = tryParseJSON(val);
+        if (Array.isArray(parsed)) {
+          val = parsed;
+        } else {
+          val = val.split(/,+/);
+        }
+      }
+      if (Array.isArray(val)) {
+        val.forEach(t => {
+          const clean = String(t).trim().toLowerCase();
+          if (clean && clean.split(/\s+/).length <= 3) tags.add(clean);
+        });
+      }
+    }
+  });
+
+  // 4. Fallback to ss_output_name or name field if still empty
+  if (tags.size === 0) {
+    const cleanOutputName = (nameStr) => {
+      if (!nameStr || typeof nameStr !== 'string') return '';
+      let clean = nameStr.replace(/\.[a-zA-Z0-9]+$/, '') // remove extension
+                         .replace(/[-_]/g, ' ') // replace dashes/underscores with spaces
+                         .trim()
+                         .toLowerCase();
+                         
+      // Remove common non-tag words or suffix junk
+      clean = clean.replace(/\b(v\d+|alpha\d+|rank\d+|noxattn|last|step\d+|epoch\d+|\d+steps|initial\s+release|lora|model|concept)\b/g, '')
+                   .replace(/\s+/g, ' ')
+                   .trim();
+      return clean;
+    };
+
+    const candidates = [target.ss_output_name, target.name];
+    for (const cand of candidates) {
+      if (cand) {
+        const cleaned = cleanOutputName(cand);
+        if (cleaned && cleaned.length > 2 && cleaned !== 'lora' && cleaned !== 'model' && cleaned.split(/\s+/).length <= 3) {
+          tags.add(cleaned);
+          break; // Use the first valid candidate
+        }
+      }
+    }
+  }
+
+  return Array.from(tags);
+}
+

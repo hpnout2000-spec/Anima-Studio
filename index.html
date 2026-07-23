@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ComfyGen — Anima Image Generator</title>
+  <title>Anima Studio — Anima & Wan 2.2 Studio</title>
   <!-- Google Fonts for premium typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -93,6 +93,15 @@
             <svg class="settings-nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
 
+          <!-- Storage & Saving -->
+          <button id="settings-nav-storage" class="menu-action-btn settings-nav-btn" data-panel="settings-panel-storage">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span>Storage &amp; Saving</span>
+            <svg class="settings-nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+
           <!-- Generation -->
           <button id="settings-nav-generation" class="menu-action-btn settings-nav-btn" data-panel="settings-panel-generation">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -168,6 +177,47 @@
       </div>
     </div>
 
+    <!-- SUB-PANEL: Storage & Saving -->
+    <div id="settings-panel-storage" class="floating-drawer settings-sub-panel">
+      <div class="drawer-main-content">
+        <div class="drawer-header">
+          <span class="drawer-title">Storage &amp; Saving</span>
+          <button class="btn-icon-close btn-close-sub-panel" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="drawer-body">
+          <div class="settings-group">
+            <label class="settings-label">Local Save Folder (Alternative to Drive C)</label>
+            <div style="font-size:11px; color:var(--text-tertiary); line-height: 1.4; margin-bottom: 10px;">
+              By default, images are saved as Blobs in the browser database on Drive C. Select a folder on any drive (e.g. D:) to store comfygen images directly there, saving Drive C space.
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div id="folder-status-box" style="padding: 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); font-size: 13px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span id="folder-status-title" style="font-weight: 600; color: var(--text-secondary);">Using browser database (Drive C)</span>
+                  <span id="folder-status-badge" style="padding: 2px 6px; font-size: 11px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); color: var(--text-tertiary);">Default</span>
+                </div>
+                <div id="folder-status-path" style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px; word-break: break-all; font-family: monospace;">-</div>
+              </div>
+              
+              <div style="display: flex; gap: 8px;">
+                <button id="btn-select-save-folder" class="settings-action-btn" type="button" style="flex: 1; height: 38px;">
+                  Select Local Folder
+                </button>
+                <button id="btn-clear-save-folder" class="settings-action-btn" type="button" style="height: 38px; color: #ff4d4f; border-color: rgba(255, 77, 79, 0.2); display: none;">
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- SUB-PANEL: Generation -->
     <div id="settings-panel-generation" class="floating-drawer settings-sub-panel">
       <div class="drawer-main-content">
@@ -180,6 +230,32 @@
           </button>
         </div>
         <div class="drawer-body">
+          <div class="settings-group">
+            <label class="settings-label">Diffusion Model (UNET)</label>
+            <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+              <select id="setting-comfyui-unet-name" class="settings-input" style="flex: 1; min-width: 0;"></select>
+              <button id="btn-rename-model" class="settings-action-btn" type="button" title="Rename Selected Model" style="padding: 0 10px; height: 38px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+              </button>
+              <button id="btn-delete-model" class="settings-action-btn" type="button" title="Delete Selected Model" style="padding: 0 10px; height: 38px; color: #ff4d4f; border-color: rgba(255, 77, 79, 0.2);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                  <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="setting-add-model-input" class="settings-input" style="flex: 1; min-width: 0;" placeholder="Add new model (e.g. model.safetensors)">
+              <button id="btn-add-model" class="settings-action-btn" type="button" style="height: 38px;">
+                + Add
+              </button>
+            </div>
+          </div>
           <div class="settings-row">
             <div class="settings-group half">
               <label class="settings-label">KSampler Steps</label>
@@ -199,6 +275,7 @@
                 <option value="dpmpp_2m_sde_gpu">dpmpp_2m_sde_gpu (Creative)</option>
                 <option value="euler_ancestral">euler_ancestral (Soft Details)</option>
                 <option value="dpmpp_sde">dpmpp_sde</option>
+                <option value="er_sde">er_sde</option>
               </select>
             </div>
             <div class="settings-group half">
@@ -328,17 +405,43 @@
       </div>
     </div>
 
-    <!-- MAIN CREATION WORKSPACE -->
-    <main id="main-workspace" class="floating-panel main-panel">
+    <!-- MAIN WORKSPACE ROW FOR BATCH GENERATIONS -->
+    <div id="workspace-batch-row" class="workspace-batch-row">
+      <div id="batch-boxes-container" class="batch-boxes-container">
+        <!-- MAIN CREATION WORKSPACE -->
+        <main id="main-workspace" class="floating-panel main-panel">
+
+      <!-- TOP SLIDER SWITCH FOR GENERATION ENGINE (txt2img vs img2vid) -->
+      <div class="top-engine-slider-container">
+        <div class="top-engine-slider-track">
+          <div id="top-engine-slider-pill" class="top-engine-slider-pill left"></div>
+          <button id="btn-engine-txt2img" class="top-engine-tab active" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+            <span>txt2img (Anima)</span>
+          </button>
+          <button id="btn-engine-img2vid" class="top-engine-tab" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
+              <polygon points="23 7 16 12 23 17 23 7"/>
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+            </svg>
+            <span>img2vid (Wan 2.2)</span>
+          </button>
+        </div>
+      </div>
       
-      <!-- SIMPLE & ADVANCED MODE SELECTION BUTTONS -->
-      <div class="mode-tabs-container">
+      <!-- SIMPLE & ADVANCED MODE SELECTION BUTTONS (txt2img only) -->
+      <div id="txt2img-mode-tabs" class="mode-tabs-container">
         <button id="tab-mode-simple" class="mode-tab active">Simple</button>
         <button id="tab-mode-advanced" class="mode-tab">Advanced</button>
         <button id="tab-mode-webref" class="mode-tab">Web Reference</button>
+        <button id="tab-mode-style-explorer" class="mode-tab">Style Explorer</button>
+        <button id="tab-mode-char-explorer" class="mode-tab">Character Explorer</button>
       </div>
 
-      <!-- MAIN CREATION INTERFACE (FORM) -->
       <div id="creation-form-container" class="creation-content-wrapper">
         <!-- Scrollable content area -->
         <div class="creation-scroll-area">
@@ -346,10 +449,30 @@
         <!-- Label above the prompt box -->
         <div class="prompt-section-label">What do you want to create?</div>
 
-        <!-- Prompt Textarea Input -->
+        <!-- Prompt Editor Container -->
         <div class="prompt-input-container">
-          <textarea id="prompt-text-input" placeholder="An elf girl walking through the neon-lit streets..." rows="4"></textarea>
+          <div id="prompt-input-editor" class="prompt-input-editor" contenteditable="true" placeholder="An elf girl walking through the neon-lit streets..."></div>
+          <textarea id="prompt-text-input" style="display: none;"></textarea>
         </div>
+
+        <!-- Art Style Editor Container -->
+        <div class="prompt-section-label">Art Style</div>
+        <div class="prompt-input-container" style="margin-bottom: 16px;">
+          <div id="art-style-input-editor" class="prompt-input-editor" contenteditable="true" placeholder="Selected artist styles will appear here..." style="min-height: 48px;"></div>
+        </div>
+
+        <!-- Additional Prompts Container (Advanced mode only) -->
+        <div id="additional-prompts-container" class="additional-prompts-container hidden">
+          <!-- Populated via Javascript -->
+        </div>
+
+        <button type="button" id="btn-add-prompt-field" class="btn-secondary-action hidden" style="margin-bottom: 16px; width: 100%; justify-content: center; gap: 8px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 14px; height: 14px;">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Add Prompt Field</span>
+        </button>
 
         <!-- ADVANCED MODE MODULAR PANEL -->
         <div id="advanced-modular-panel" class="advanced-panel hidden">
@@ -386,31 +509,88 @@
           </div>
         </div>
 
-        <!-- ACTIVE COMPOSED TAGS / PROMPT PREVIEW -->
-        <div class="prompt-preview-container">
-          <div class="prompt-preview-header">
-            <span>Composed Prompt Tags</span>
-            <button id="btn-clear-tags" class="btn-text-action" style="font-size: 11px;">Clear All</button>
+        <!-- STYLE EXPLORER MODULAR PANEL -->
+        <div id="style-explorer-modular-panel" class="advanced-panel hidden">
+          <div class="style-explorer-controls" style="display: flex; gap: 10px; margin-bottom: 14px; width: 100%;">
+            <div class="style-explorer-search-wrapper" style="position: relative; flex: 1; display: flex; align-items: center;">
+              <input type="text" id="style-explorer-search" placeholder="Search 40,000+ artist styles..." style="width: 100%; padding: 10px 36px 10px 14px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 12px; color: var(--text-primary); font-size: 14px; outline: none; transition: border-color var(--ios-duration-quick) var(--ios-ease-standard);">
+              <button id="btn-style-explorer-clear-search" class="btn-text-action" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--text-secondary); font-size: 18px; cursor: pointer; display: none;">&times;</button>
+            </div>
+            <div class="style-explorer-sort-wrapper" style="flex-shrink: 0; min-width: 160px;">
+              <select id="style-explorer-sort" class="settings-input" style="width: 100%; padding: 10px; border-radius: 12px; font-size: 13px; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-light); cursor: pointer;">
+                <option value="works_desc">Works: High to Low</option>
+                <option value="works_asc">Works: Low to High</option>
+                <option value="name_asc">Name: A to Z</option>
+                <option value="name_desc">Name: Z to A</option>
+                <option value="uniqueness_desc">Uniqueness: High to Low</option>
+                <option value="random">Random</option>
+              </select>
+            </div>
           </div>
-          <div id="active-tags-list" class="active-tags-chips-wrapper">
-            <div class="no-tags-placeholder">No active tags. Use Advanced mode to compose.</div>
+          
+          <div id="style-explorer-status" class="style-explorer-status" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+            Preparing styles database...
+          </div>
+
+          <div id="style-explorer-grid" class="style-explorer-grid">
+            <!-- Dynamic cards -->
+          </div>
+
+          <div id="style-explorer-load-more-container" style="display: none; text-align: center; padding: 10px 0 16px;">
+            <button id="btn-style-explorer-load-more" class="btn-secondary-action" style="margin: 0 auto; padding: 10px 24px; border-radius: 20px; font-weight: 500; font-size: 13px;">
+              Load More Styles
+            </button>
           </div>
         </div>
 
-        <!-- IMAGE SIZE CONTROL -->
-        <div class="image-size-container">
-          <div class="image-size-header">
-            <span>Image Size</span>
-            <span id="active-size-display" class="active-size-display">832 × 1216</span>
+        <!-- CHARACTER EXPLORER MODULAR PANEL -->
+        <div id="char-explorer-modular-panel" class="advanced-panel hidden">
+          <div class="style-explorer-controls" style="display: flex; gap: 10px; margin-bottom: 14px; width: 100%;">
+            <div class="style-explorer-search-wrapper" style="position: relative; flex: 1; display: flex; align-items: center;">
+              <input type="text" id="char-explorer-search" placeholder="Search characters (e.g. Hatsune Miku, Vocaloid, hair)..." style="width: 100%; padding: 10px 36px 10px 14px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 12px; color: var(--text-primary); font-size: 14px; outline: none; transition: border-color var(--ios-duration-quick) var(--ios-ease-standard);">
+              <button id="btn-char-explorer-clear-search" class="btn-text-action" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--text-secondary); font-size: 18px; cursor: pointer; display: none;">&times;</button>
+            </div>
+            <div class="style-explorer-sort-wrapper" style="flex-shrink: 0; min-width: 160px;">
+              <select id="char-explorer-sort" class="settings-input" style="width: 100%; padding: 10px; border-radius: 12px; font-size: 13px; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-light); cursor: pointer;">
+                <option value="popular">Popularity</option>
+                <option value="name_asc">Name: A to Z</option>
+                <option value="name_desc">Name: Z to A</option>
+                <option value="random">Random</option>
+              </select>
+            </div>
           </div>
-          <div class="image-size-body">
-            <select id="size-category-select" class="size-category-dropdown">
-              <option value="square">Square (1:1)</option>
-              <option value="album">Album</option>
-              <option value="vertical">Vertical</option>
-            </select>
-            <div id="size-resolutions-list" class="size-resolutions-list">
-              <!-- Dynamically populated via JS -->
+          
+          <div id="char-explorer-status" class="style-explorer-status" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+            Preparing characters database...
+          </div>
+
+          <div id="char-explorer-grid" class="style-explorer-grid">
+            <!-- Dynamic cards -->
+          </div>
+
+          <div id="char-explorer-load-more-container" style="display: none; text-align: center; padding: 10px 0 16px;">
+            <button id="btn-char-explorer-load-more" class="btn-secondary-action" style="margin: 0 auto; padding: 10px 24px; border-radius: 20px; font-weight: 500; font-size: 13px;">
+              Load More Characters
+            </button>
+          </div>
+        </div>
+
+
+
+        <!-- IMAGE SIZE & BATCH SIZE CONTROL -->
+        <div class="image-size-and-batch-container">
+          <!-- Image Size Trigger Panel -->
+          <div id="btn-open-resolution" class="resolution-trigger-btn" title="Edit Resolution">
+            <span id="active-size-display" class="active-size-display-text">832 × 1216</span>
+            <span class="edit-hint-text">Click to edit</span>
+          </div>
+          <!-- Batch Size Panel -->
+          <div class="batch-size-panel">
+            <span class="batch-size-label">BATCH SIZE</span>
+            <div class="batch-size-control">
+              <button type="button" id="btn-batch-dec" class="batch-control-btn">◄</button>
+              <span id="batch-size-display" class="batch-size-value">1</span>
+              <button type="button" id="btn-batch-inc" class="batch-control-btn">►</button>
             </div>
           </div>
         </div>
@@ -460,6 +640,130 @@
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
             <span>Generate Art</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- VIDEO CREATION WORKSPACE (Wan 2.2 img2vid) -->
+      <div id="video-form-container" class="creation-content-wrapper hidden">
+        <div class="creation-scroll-area">
+
+          <!-- Initial Image Input Section -->
+          <div class="prompt-section-label">Initial Image (Required)</div>
+          <div id="video-initial-image-dropzone" class="video-image-dropzone">
+            <input type="file" id="video-initial-file-input" accept="image/*" style="display: none;">
+            <div id="video-initial-empty-state" class="video-dropzone-placeholder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 32px; height: 32px; margin-bottom: 8px; color: var(--text-tertiary);">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">Click or drag & drop source image</div>
+              <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">PNG, JPG, WEBP supported</div>
+            </div>
+            <div id="video-initial-preview-wrapper" class="video-preview-wrapper hidden">
+              <img id="video-initial-img-preview" src="" alt="Initial frame preview">
+              <button type="button" id="btn-remove-video-initial-img" class="btn-remove-initial-img" title="Remove initial image">&times;</button>
+              <div id="video-initial-dimensions-badge" class="video-dim-badge">0 × 0</div>
+            </div>
+          </div>
+
+          <!-- Video Positive Prompt Sections (3 Fields) -->
+          <div class="prompt-section-label" style="margin-top: 18px;">Positive Prompt</div>
+          
+          <div class="video-prompt-fields-group">
+            <div class="video-prompt-field-item">
+              <label class="video-field-label" for="video-prompt-setting">1) Brief description of the setting/appearance</label>
+              <textarea id="video-prompt-setting" class="settings-textarea video-prompt-textarea" rows="2" placeholder="e.g. A serene anime girl standing in a blooming cherry blossom garden at sunset..."></textarea>
+            </div>
+            
+            <div class="video-prompt-field-item">
+              <label class="video-field-label" for="video-prompt-action">2) Actions, motions, story</label>
+              <textarea id="video-prompt-action" class="settings-textarea video-prompt-textarea" rows="2" placeholder="e.g. Gentle breeze blowing hair and petals, soft eye blink, slow smile towards camera..."></textarea>
+            </div>
+            
+            <div class="video-prompt-field-item">
+              <label class="video-field-label" for="video-prompt-camera">3) Camera composition</label>
+              <textarea id="video-prompt-camera" class="settings-textarea video-prompt-textarea" rows="2" placeholder="e.g. Medium close-up shot, slow cinematic zoom in, shallow depth of field..."></textarea>
+            </div>
+          </div>
+
+          <!-- Conditional Negative Prompt (shown when CFG > 1) -->
+          <div id="video-negative-prompt-wrapper" class="video-negative-wrapper hidden" style="margin-top: 14px;">
+            <label class="video-field-label" for="video-prompt-negative" style="color: var(--warning-color);">Negative Prompt (Active when CFG &gt; 1.0)</label>
+            <textarea id="video-prompt-negative" class="settings-textarea video-prompt-textarea" rows="2" placeholder="e.g. distortion, jerky movement, extra limbs, low quality, artifacts"></textarea>
+          </div>
+
+          <!-- Video Parameters & Settings Section -->
+          <div class="prompt-section-label" style="margin-top: 20px;">Video Settings</div>
+          
+          <div class="video-settings-card">
+            <!-- Row 1: Steps & CFG -->
+            <div class="settings-row" style="margin-bottom: 14px;">
+              <div class="settings-group half">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <label class="settings-label" style="margin: 0;">Steps</label>
+                  <span id="video-steps-val" style="font-size: 12px; font-weight: 600; color: var(--text-accent);">4</span>
+                </div>
+                <input type="number" id="setting-video-steps" class="settings-input" value="4" min="1" max="50">
+              </div>
+
+              <div class="settings-group half">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <label class="settings-label" style="margin: 0;">CFG Scale</label>
+                  <span id="video-cfg-val" style="font-size: 12px; font-weight: 600; color: var(--text-accent);">1.0</span>
+                </div>
+                <input type="number" id="setting-video-cfg" class="settings-input" value="1.0" min="0.1" max="20.0" step="0.1">
+              </div>
+            </div>
+
+            <!-- Row 2: Resolution (Megapixels & Auto-calculated aspect size) -->
+            <div class="settings-group" style="margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label class="settings-label" style="margin: 0;">Resolution (Megapixels)</label>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span id="video-mp-val" style="font-size: 12px; font-weight: 600; color: var(--text-accent);">0.40 MP</span>
+                  <span id="video-calculated-res-badge" class="video-res-calc-pill">624 × 624</span>
+                </div>
+              </div>
+
+              <!-- MP Preset Quick Chips -->
+              <div class="video-mp-presets">
+                <button type="button" class="mp-preset-chip" data-mp="0.25">0.25 MP</button>
+                <button type="button" class="mp-preset-chip active" data-mp="0.4">0.4 MP</button>
+                <button type="button" class="mp-preset-chip" data-mp="0.6">0.6 MP</button>
+                <button type="button" class="mp-preset-chip" data-mp="0.8">0.8 MP</button>
+                <button type="button" class="mp-preset-chip" data-mp="1.0">1.0 MP</button>
+              </div>
+
+              <input type="range" id="input-video-megapixels" min="0.1" max="2.0" step="0.05" value="0.4" class="settings-slider-input" style="margin-top: 8px;">
+              <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">
+                Auto-scales initial image dimensions to selected MP while strictly keeping aspect ratio (rounded to multiple of 16).
+              </div>
+            </div>
+
+            <!-- Row 3: Duration & Frame Count -->
+            <div class="settings-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label class="settings-label" style="margin: 0;">Video Duration</label>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span id="video-duration-sec-val" style="font-size: 12px; font-weight: 600; color: var(--text-accent);">5s</span>
+                  <span id="video-frames-count-badge" class="video-frames-pill">81 frames</span>
+                </div>
+              </div>
+              <input type="range" id="input-video-duration" min="1" max="10" step="1" value="5" class="settings-slider-input">
+            </div>
+          </div>
+
+        </div><!-- /creation-scroll-area -->
+
+        <!-- VIDEO GENERATE ACTION FOOTER -->
+        <div class="creation-actions">
+          <button id="btn-generate-video" class="btn-generate-art" style="width: 100%; justify-content: center;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spark-icon">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span>Generate Video (Wan 2.2)</span>
           </button>
         </div>
       </div>
@@ -608,6 +912,78 @@
                 <button class="edit-pro-mode-btn" data-edit-mode="details">
                   <span class="preset-name">Details</span>
                 </button>
+                <button class="edit-pro-mode-btn" data-edit-mode="custom">
+                  <span class="preset-name">Custom</span>
+                </button>
+              </div>
+
+              <!-- Edit Pro custom settings panel -->
+              <div id="edit-pro-custom-settings" class="edit-pro-custom-settings-panel" style="display: none; margin-top: 12px; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); border-radius: 8px;">
+                <div class="custom-setting-row" style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px;">
+                  <label class="custom-setting-label" style="font-size: 12px; font-weight: 500; color: var(--text-primary);">Resize Method</label>
+                  <select id="custom-edit-resize-method" style="width: 100%; padding: 8px; background: var(--bg-hover); border: 1px solid var(--border-light); border-radius: 6px; color: var(--text-primary); font-family: inherit; font-size: 12px;">
+                    <option value="keep-proportion-64">Keep proportion (Multiple of 64) [Recommended]</option>
+                    <option value="stretch">Stretch to aspect ratio (1024x1024)</option>
+                    <option value="keep-proportion-no-rounding">Keep proportion (No rounding - Old behavior)</option>
+                  </select>
+                </div>
+
+                <div class="custom-setting-row" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <label class="custom-setting-label" style="font-size: 12px; font-weight: 500; color: var(--text-primary);">Padding Width</label>
+                    <span style="font-size: 10px; color: var(--text-secondary);">Width of the separator stripe</span>
+                  </div>
+                  <select id="custom-edit-padding-width" style="width: 80px; padding: 6px; background: var(--bg-hover); border: 1px solid var(--border-light); border-radius: 6px; color: var(--text-primary); font-family: inherit; font-size: 12px; text-align: center;">
+                    <option value="48">48px</option>
+                    <option value="64" selected>64px [Rec]</option>
+                    <option value="96">96px</option>
+                    <option value="128">128px</option>
+                  </select>
+                </div>
+
+                <div class="custom-setting-row" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <label class="custom-setting-label" style="font-size: 12px; font-weight: 500; color: var(--text-primary);">Improved Prompting</label>
+                    <span style="font-size: 10px; color: var(--text-secondary);">Instructs model to keep background/lighting</span>
+                  </div>
+                  <label class="custom-toggle-switch">
+                    <input type="checkbox" id="custom-edit-improved-prompt" checked>
+                    <span class="custom-toggle-slider"></span>
+                  </label>
+                </div>
+
+                <div class="custom-setting-row" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <label class="custom-setting-label" style="font-size: 12px; font-weight: 500; color: var(--text-primary);">Negative Prompt Fix</label>
+                    <span style="font-size: 10px; color: var(--text-secondary);">Exclude black borders and seams</span>
+                  </div>
+                  <label class="custom-toggle-switch">
+                    <input type="checkbox" id="custom-edit-neg-prompt-fix" checked>
+                    <span class="custom-toggle-slider"></span>
+                  </label>
+                </div>
+
+                <div class="custom-setting-row" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <label class="custom-setting-label" style="font-size: 12px; font-weight: 500; color: var(--text-primary);">Denoise Cap (0.92)</label>
+                    <span style="font-size: 10px; color: var(--text-secondary);">Prevent total background loss</span>
+                  </div>
+                  <label class="custom-toggle-switch">
+                    <input type="checkbox" id="custom-edit-denoise-cap" checked>
+                    <span class="custom-toggle-slider"></span>
+                  </label>
+                </div>
+
+                <div class="custom-setting-row" style="display: flex; align-items: center; justify-content: space-between;">
+                  <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <label class="custom-setting-label" style="font-size: 12px; font-weight: 500; color: var(--text-primary);">Use Noise Mask</label>
+                    <span style="font-size: 10px; color: var(--text-secondary);">Denoise only inside masked area</span>
+                  </div>
+                  <label class="custom-toggle-switch">
+                    <input type="checkbox" id="custom-edit-noise-mask" checked>
+                    <span class="custom-toggle-slider"></span>
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -680,6 +1056,11 @@
       <div id="art-preview-area" class="art-preview-wrapper hidden">
         <div class="art-preview-canvas">
           <img id="generated-art-img" src="" alt="Generated artwork preview">
+          <video id="generated-video-player" controls autoplay loop playsinline class="hidden" style="max-width: 100%; max-height: 100%; border-radius: 12px; box-shadow: var(--shadow-lg);"></video>
+        </div>
+        <!-- Batch box actions (visible only when batch size >= 2) -->
+        <div id="batch-box-1-actions" class="batch-box-actions hidden">
+          <!-- Populated via JS -->
         </div>
         <!-- Post-Generation Buttons -->
         <div class="post-gen-actions-bar">
@@ -701,6 +1082,13 @@
               <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
             </svg>
             <span>Edit</span>
+          </button>
+          <button id="btn-post-generate-more" class="post-action-btn hidden" style="background: var(--bg-secondary); color: var(--text-accent); border: 1px solid var(--border-accent);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="23 7 16 12 23 17 23 7"/>
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+            </svg>
+            <span>Generate More</span>
           </button>
           <button id="btn-post-save" class="post-action-btn save-btn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -726,9 +1114,13 @@
             <span>Surprise me again</span>
           </button>
         </div>
+        </main>
       </div>
-
-    </main>
+      <!-- Footer Close button for batch generations -->
+      <div id="batch-actions-footer" class="batch-actions-footer hidden">
+        <button id="btn-batch-close" class="btn-batch-close">Close Preview</button>
+      </div>
+    </div>
 
     <!-- FULLPAGE ALBUM WORKSPACE -->
     <main id="album-workspace" class="floating-panel main-panel hidden">
@@ -769,6 +1161,19 @@
       </div>
       
       <div class="album-workspace-body">
+        <div id="album-dir-permission-banner" style="display: none; align-items: center; justify-content: space-between; padding: 12px 16px; border-radius: 8px; background: rgba(230, 126, 34, 0.15); border: 1px solid rgba(230, 126, 34, 0.3); margin-bottom: 16px; font-size: 13px;">
+          <div style="display: flex; align-items: center; gap: 8px; color: #e67e22;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px;">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            <span>Permission is required to load images from the local folder.</span>
+          </div>
+          <button id="btn-grant-album-permission" class="menu-action-btn" style="height: 30px; font-size: 12px; padding: 0 12px; margin: 0; background: var(--text-accent); color: var(--bg-primary); border: none; cursor: pointer;">
+            Grant Access
+          </button>
+        </div>
+
         <div id="album-workspace-groups" class="album-groups-container">
           <!-- Populated via Javascript -->
         </div>
@@ -853,6 +1258,64 @@
       </div>
     </div>
 
+    <!-- RESOLUTION SELECTOR FLOATING DRAWER -->
+    <div id="resolution-selector-drawer" class="floating-drawer resolution-drawer">
+      <!-- Animated text that moves from button position to center top -->
+      <div id="drawer-moving-text" class="drawer-moving-text">
+        <span id="drawer-active-size-display" class="active-size-display-text">832 × 1216</span>
+        <span id="drawer-edit-hint" class="edit-hint-text">Click to edit</span>
+      </div>
+
+      <div class="drawer-main-content">
+        <div class="drawer-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="node-header-dot"></div>
+            <span class="drawer-title">Resolution Selector</span>
+          </div>
+          <button id="btn-close-resolution" class="btn-icon-close" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        
+        <div class="drawer-body resolution-drawer-body">
+          <!-- The static resolution-output-row was removed as requested -->
+          <div style="height: 80px;"></div> <!-- Spacer so content isn't covered by the moving text -->
+          
+          <div class="resolution-param-list">
+            <div class="resolution-param-row">
+              <button type="button" id="btn-aspect-dec" class="param-arrow">◄</button>
+              <div class="param-content">
+                <span class="param-name">aspect_ratio</span>
+                <span id="param-val-aspect" class="param-value">1:1 (Square)</span>
+              </div>
+              <button type="button" id="btn-aspect-inc" class="param-arrow">►</button>
+            </div>
+            
+            <div class="resolution-param-row">
+              <button type="button" id="btn-megapixels-dec" class="param-arrow">◄</button>
+              <div class="param-content">
+                <span class="param-name">megapixels</span>
+                <span id="param-val-megapixels" class="param-value">1.2</span>
+              </div>
+              <button type="button" id="btn-megapixels-inc" class="param-arrow">►</button>
+            </div>
+            
+            <div class="resolution-param-row">
+              <button type="button" id="btn-multiple-dec" class="param-arrow">◄</button>
+              <div class="param-content">
+                <span class="param-name">multiple</span>
+                <span id="param-val-multiple" class="param-value">16</span>
+              </div>
+              <button type="button" id="btn-multiple-inc" class="param-arrow">►</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Fullscreen Image Lightbox Overlay -->
     <div id="image-lightbox" class="image-lightbox hidden">
       <button class="lightbox-close" id="lightbox-close">&times;</button>
@@ -866,6 +1329,18 @@
         <div id="lightbox-tags-container" class="lightbox-tags-container"></div>
       </div>
       <div class="lightbox-controls">
+        <button id="btn-lightbox-send-to-video" class="lightbox-btn" title="Animate Video (Wan 2.2)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
+            <polygon points="23 7 16 12 23 17 23 7"/>
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+          </svg>
+        </button>
+        <button id="btn-lightbox-gen-more" class="lightbox-btn hidden" title="Generate More (Continue Video)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
+            <polygon points="23 7 16 12 23 17 23 7"/>
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+          </svg>
+        </button>
         <button id="btn-lightbox-edit" class="lightbox-btn" title="Edit Image">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         </button>

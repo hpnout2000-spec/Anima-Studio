@@ -31,3 +31,8 @@ build/
 *.sln
 *.sw?
 .DS_Store
+
+# Temporary & scratch files
+New folder/
+New folder.zip
+scratch_fetch.js

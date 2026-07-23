@@ -1,8 +1,8 @@
 ========================================================================
-ComfyGen — Tags Addon & Category Management Instructions
+Anima Studio — Tags Addon & Category Management Instructions
 ========================================================================
 
-ComfyGen features a flexible Tag Addon system. You can create custom tag categories, delete them, and import custom tags (including single tags and tag combos/sets) via JSON files.
+Anima Studio features a flexible Tag Addon system. You can create custom tag categories, delete them, and import custom tags (including single tags and tag combos/sets) via JSON files.
 
 All your customizations are automatically stored in the browser's localStorage under the key 'comfygen_custom_tags'.
 
@@ -10,7 +10,7 @@ All your customizations are automatically stored in the browser's localStorage u
 Default Categories (Built-in)
 ------------------------------------------------------------------------
 
-The following categories are already available in ComfyGen by default:
+The following categories are already available in Anima Studio by default:
 - `pose` (Pose)
 - `character` (Character)
 - `background` (Background)

@@ -32,7 +32,6 @@ export function initLightbox() {
 
   // 1. Drag Panning listeners
   contentEl.addEventListener('mousedown', (e) => {
-    if (scale <= 1.0) return; // Only pan when zoomed in
     e.preventDefault();
     isDragging = true;
     startX = e.clientX - offsetX;
@@ -64,21 +63,40 @@ export function initLightbox() {
     const delta = -e.deltaY;
     const oldScale = scale;
 
-    scale = Math.min(Math.max(scale + (delta > 0 ? zoomFactor : -zoomFactor) * scale, 1.0), 5.0);
+    scale = Math.min(Math.max(scale + (delta > 0 ? zoomFactor : -zoomFactor) * scale, 0.2), 5.0);
 
-    if (scale === 1.0) {
-      offsetX = 0;
-      offsetY = 0;
-    } else {
-      // Zoom towards cursor location
-      const mouseX = e.clientX - (window.innerWidth / 2);
-      const mouseY = e.clientY - (window.innerHeight / 2);
+    // Zoom towards cursor location
+    const mouseX = e.clientX - (window.innerWidth / 2);
+    const mouseY = e.clientY - (window.innerHeight / 2);
 
-      offsetX -= mouseX * (scale / oldScale - 1);
-      offsetY -= mouseY * (scale / oldScale - 1);
-    }
+    offsetX -= mouseX * (scale / oldScale - 1);
+    offsetY -= mouseY * (scale / oldScale - 1);
 
     updateTransform();
+  });
+
+  const btnSendToVideo = document.getElementById('btn-lightbox-send-to-video');
+  btnSendToVideo?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeLightbox();
+    if (window.sendImageToVideoGen && imgEl) {
+      const src = imgEl.src;
+      const prompt = document.getElementById('lightbox-prompt-text')?.textContent || '';
+      const id = lightboxEl?.dataset.imageId || null;
+      window.sendImageToVideoGen(src, prompt, id);
+    }
+  });
+
+  const btnGenMore = document.getElementById('btn-lightbox-gen-more');
+  btnGenMore?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeLightbox();
+    if (window.generateMoreFromVideo && imgEl) {
+      const src = imgEl.dataset.videoSrc || imgEl.src;
+      const prompt = document.getElementById('lightbox-prompt-text')?.textContent || '';
+      const id = lightboxEl?.dataset.imageId || null;
+      window.generateMoreFromVideo(src, prompt, id);
+    }
   });
 
   // 3. Zoom Controls Buttons
@@ -125,10 +143,45 @@ export function initLightbox() {
   });
 }
 
-export function openLightbox(src, prompt = '', tags = []) {
+export function openLightbox(src, prompt = '', tags = [], id = null, isVideoHint = false) {
   if (!lightboxEl || !imgEl) return;
   
-  imgEl.src = src;
+  lightboxEl.dataset.imageId = id || '';
+  
+  const isVideo = isVideoHint || (src && (src.includes('.mp4') || src.includes('/video/') || src.includes('.webm')));
+  let videoEl = document.getElementById('lightbox-video');
+  
+  const btnGenMore = document.getElementById('btn-lightbox-gen-more');
+  const btnEdit = document.getElementById('btn-lightbox-edit');
+  const btnSendToVideo = document.getElementById('btn-lightbox-send-to-video');
+  if (isVideo) {
+    if (!videoEl) {
+      videoEl = document.createElement('video');
+      videoEl.id = 'lightbox-video';
+      videoEl.controls = true;
+      videoEl.autoplay = true;
+      videoEl.loop = true;
+      videoEl.style.maxWidth = '100%';
+      videoEl.style.maxHeight = '100%';
+      contentEl.appendChild(videoEl);
+    }
+    videoEl.src = src;
+    videoEl.classList.remove('hidden');
+    imgEl.classList.add('hidden');
+    imgEl.dataset.videoSrc = src;
+    if (btnGenMore) btnGenMore.classList.remove('hidden');
+    if (btnEdit) btnEdit.classList.add('hidden');
+    if (btnSendToVideo) btnSendToVideo.classList.add('hidden');
+  } else {
+    if (videoEl) videoEl.classList.add('hidden');
+    imgEl.src = src;
+    imgEl.classList.remove('hidden');
+    delete imgEl.dataset.videoSrc;
+    if (btnGenMore) btnGenMore.classList.add('hidden');
+    if (btnEdit) btnEdit.classList.remove('hidden');
+    if (btnSendToVideo) btnSendToVideo.classList.remove('hidden');
+  }
+
   resetZoom();
 
   // Update caption panel
@@ -168,16 +221,11 @@ export function closeLightbox() {
 
 function zoomStep(delta) {
   const oldScale = scale;
-  scale = Math.min(Math.max(scale + delta, 1.0), 5.0);
+  scale = Math.min(Math.max(scale + delta, 0.2), 5.0);
   
-  if (scale === 1.0) {
-    offsetX = 0;
-    offsetY = 0;
-  } else {
-    // Zoom centered on the viewport center when using buttons
-    offsetX = offsetX * (scale / oldScale);
-    offsetY = offsetY * (scale / oldScale);
-  }
+  // Zoom centered on the viewport center when using buttons
+  offsetX = offsetX * (scale / oldScale);
+  offsetY = offsetY * (scale / oldScale);
   
   updateTransform();
 }
@@ -190,6 +238,13 @@ function resetZoom() {
 }
 
 function updateTransform() {
-  if (!imgEl) return;
-  imgEl.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+  const transformStr = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+  if (imgEl) imgEl.style.transform = transformStr;
+  const videoEl = document.getElementById('lightbox-video');
+  if (videoEl) videoEl.style.transform = transformStr;
+
+  const resetBtn = document.getElementById('btn-lightbox-zoom-reset');
+  if (resetBtn) {
+    resetBtn.textContent = `${Math.round(scale * 100)}%`;
+  }
 }
