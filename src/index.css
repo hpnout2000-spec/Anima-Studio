@@ -5418,5 +5418,47 @@ body, html {
   color: #7dd3fc;
 }
 
+/* Web Preview Notice Banner */
+.web-preview-notice-banner {
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  color: #fef08a;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  backdrop-filter: blur(8px);
+}
+.web-preview-notice-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.web-preview-notice-content svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  stroke: #facc15;
+}
+.web-preview-notice-content span {
+  flex: 1;
+  line-height: 1.4;
+}
+.btn-dismiss-notice {
+  background: none;
+  border: none;
+  color: #fef08a;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+  line-height: 1;
+}
+.btn-dismiss-notice:hover {
+  opacity: 1;
+}
+
+
 
 

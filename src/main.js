@@ -7774,9 +7774,31 @@ function showVideoPreview(videoUrl, promptText) {
   };
 }
 
+function checkWebPreviewNotice() {
+  const isWebPreview = window.location.hostname.includes('github.io') || (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1');
+  const banner = document.getElementById('web-preview-notice-banner');
+  const dismissBtn = document.getElementById('btn-dismiss-web-notice');
+  
+  if (isWebPreview && banner) {
+    const isDismissed = localStorage.getItem('anima_studio_dismiss_web_notice');
+    if (!isDismissed) {
+      banner.style.display = 'block';
+    }
+  }
+
+  if (dismissBtn && banner) {
+    dismissBtn.addEventListener('click', () => {
+      banner.style.display = 'none';
+      localStorage.setItem('anima_studio_dismiss_web_notice', 'true');
+    });
+  }
+}
+
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', () => {
   initEngineSliderSwitch();
   initVideoFormController();
+  checkWebPreviewNotice();
 });
+
 

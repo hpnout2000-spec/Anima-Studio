@@ -411,6 +411,21 @@
         <!-- MAIN CREATION WORKSPACE -->
         <main id="main-workspace" class="floating-panel main-panel">
 
+      <!-- WEB PREVIEW BANNER (Visible on GitHub Pages / Static Hosting) -->
+      <div id="web-preview-notice-banner" class="web-preview-notice-banner" style="display: none;">
+        <div class="web-preview-notice-content">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <span>
+            <strong>Web Version Notice:</strong> You are using the online web preview on GitHub Pages. Certain features requiring a local proxy server (such as Animadex Character Search) will not work online. For full functionality, run Anima Studio locally!
+          </span>
+          <button id="btn-dismiss-web-notice" class="btn-dismiss-notice" title="Dismiss">&times;</button>
+        </div>
+      </div>
+
       <!-- TOP SLIDER SWITCH FOR GENERATION ENGINE (txt2img vs img2vid) -->
       <div class="top-engine-slider-container">
         <div class="top-engine-slider-track">

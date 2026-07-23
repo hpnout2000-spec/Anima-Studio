@@ -7,13 +7,14 @@
 
 ---
 
-## 🚀 Live Web App (No Installation Required)
+## 🚀 Live Web App (Online Preview)
 
-You can launch and use **Anima Studio** directly in your browser without installing Node.js or any client software:
+You can open **Anima Studio** directly in your browser without installing Node.js:
 
 👉 **[https://hpnout2000-spec.github.io/Anima-Studio/](https://hpnout2000-spec.github.io/Anima-Studio/)**
 
-Simply open the link, ensure your local ComfyUI server is running (e.g. `http://localhost:8188`), and start generating!
+> [!WARNING]
+> **Web Preview Notice:** When using the hosted GitHub Pages version, server-proxy features (such as Animadex Character Search) are disabled due to static hosting limits. For full functionality and local settings persistence, clone and run Anima Studio locally!
 
 ---
 
