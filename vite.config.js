@@ -230,6 +230,7 @@ function comfygenPersistencePlugin() {
 }
 
 export default defineConfig({
+  base: './',
   plugins: [comfygenPersistencePlugin()],
   server: {
     port: 5173,

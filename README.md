@@ -83,3 +83,12 @@ Ensure standard ComfyUI video nodes or Wan 2.2 support nodes are loaded (e.g., `
 - **ComfyUI-KJNodes**
 - **AILab-Nodes**
 - **ComfyUI-JPS-Nodes**
+
+---
+
+## ⚖️ Legal & Privacy Notice
+
+- **Open Source & License:** Anima Studio is released under the open-source **MIT License**. The software is provided "AS IS", without warranty of any kind.
+- **Client-Side Privacy:** Anima Studio processes all user data, prompt inputs, and generated media entirely on the user's local web browser and local ComfyUI instance (`http://localhost:8188`). No image data, video files, or user metadata are uploaded to external servers.
+- **Third-Party Trademarks:** All model names, trademarks, and logos (e.g., Anima, Wan 2.2, ComfyUI, Civitai, HuggingFace) belong to their respective owners. Anima Studio is an independent community project and is not affiliated with or endorsed by Circlestone Labs or any third party.
+
