@@ -22,7 +22,7 @@ Simply open the link, ensure your local ComfyUI server is running (e.g. `http://
 For optimal performance and stunning visual results with Anima Studio, we strongly recommend using:
 
 - 🎬 **Wan 2.2 (img2vid Video Generation)**: Excellent motion quality, high temporal consistency, and responsive camera control. Highly recommended on Civitai!
-- 🎨 **Anima v1 Base Model (txt2img)**: A state-of-the-art anime Diffusion Transformer (DiT) base model by Circlestone Labs.
+- 🎨 **Anima v1 Turbo Model (txt2img)** *(Released July 8, 2026)*: Ultra-fast, state-of-the-art anime Diffusion Transformer (DiT) checkpoint by Circlestone Labs (`anima-turbo-v1.0.safetensors`).
 
 ---
 
@@ -68,8 +68,8 @@ You need a running instance of ComfyUI. Open the Settings panel in the client (v
 
 ### 3. Model Requirements and Download Links
 
-#### 🎨 Anima v1 Base Model (Diffusion Transformer)
-- **Diffusion weights**: `anima_baseV10.safetensors` → `ComfyUI/models/diffusion_models/` ([Download HuggingFace](https://huggingface.co/circlestone-labs/Anima/resolve/main/anima-base-v1.0.safetensors))
+#### 🎨 Anima v1 Turbo Model (Diffusion Transformer — Released July 8, 2026)
+- **Diffusion weights**: `anima-turbo-v1.0.safetensors` (4.18 GB) → `ComfyUI/models/diffusion_models/` ([Download HuggingFace](https://huggingface.co/circlestone-labs/Anima/resolve/main/anima-turbo-v1.0.safetensors)) *(or `anima-base-v1.0.safetensors`)*
 - **Text Encoder**: `qwen_3_06b_base.safetensors` → `ComfyUI/models/text_encoders/` ([Download HuggingFace](https://huggingface.co/circlestone-labs/Anima/resolve/main/qwen_3_06b_base.safetensors))
 - **VAE**: `qwen_image_vae.safetensors` → `ComfyUI/models/vae/` ([Download HuggingFace](https://huggingface.co/circlestone-labs/Anima/resolve/main/qwen_image_vae.safetensors))
 
