@@ -7,6 +7,16 @@
 
 ---
 
+## 🚀 Live Web App (No Installation Required)
+
+You can launch and use **Anima Studio** directly in your browser without installing Node.js or any client software:
+
+👉 **[https://hpnout2000-spec.github.io/Anima-Studio/](https://hpnout2000-spec.github.io/Anima-Studio/)**
+
+Simply open the link, ensure your local ComfyUI server is running (e.g. `http://localhost:8188`), and start generating!
+
+---
+
 ## 🌟 Recommended Models (Civitai & HuggingFace)
 
 For optimal performance and stunning visual results with Anima Studio, we strongly recommend using:
