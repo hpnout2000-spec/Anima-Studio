@@ -7147,47 +7147,11 @@ async function performLiveCharSearch(query, sort, page) {
   }
   
   const seedParam = sort === 'random' ? `&seed=${Math.random()}` : '';
-  const queryParam = `q=${encodeURIComponent(query)}&sort=${apiSort}&page=${page}${seedParam}`;
+  const url = `/api/char-search?q=${encodeURIComponent(query)}&sort=${apiSort}&page=${page}${seedParam}`;
   
-  // 1. Try local server proxy first
-  try {
-    const localResp = await fetch(`/api/char-search?${queryParam}`);
-    if (localResp.ok) {
-      return await localResp.json();
-    }
-  } catch (e) {
-    // Local proxy server unavailable (e.g., static hosting on GitHub Pages)
-  }
-
-  // 2. Try direct Animadex API
-  const directUrl = `https://animadex.net/api/characters/search?${queryParam}`;
-  try {
-    const directResp = await fetch(directUrl);
-    if (directResp.ok) {
-      return await directResp.json();
-    }
-  } catch (e) {
-    // Direct request blocked or failed
-  }
-
-  // 3. Fallback: Public CORS proxies for static web environments
-  const corsProxies = [
-    `https://corsproxy.io/?${encodeURIComponent(directUrl)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`
-  ];
-
-  for (const proxy of corsProxies) {
-    try {
-      const proxyResp = await fetch(proxy);
-      if (proxyResp.ok) {
-        return await proxyResp.json();
-      }
-    } catch (e) {
-      // Continue to next proxy
-    }
-  }
-
-  throw new Error('API request failed');
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('API request failed');
+  return await response.json();
 }
 
 async function fetchAndRenderCharExplorerPage() {
