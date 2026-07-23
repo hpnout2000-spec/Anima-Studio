@@ -35,4 +35,5 @@ build/
 # Temporary & scratch files
 New folder/
 New folder.zip
-scratch_fetch.js
+# Local config and secret files
+settings.json
