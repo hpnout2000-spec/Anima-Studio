@@ -48,8 +48,8 @@ let appState = {
   brushSettingsCollapsed: true,
   brushMode: 'draw', // 'draw' or 'sketch'
   sketchColor: '#ff0000',
-  brushSize: 20,
-  denoise: 0.60,
+  brushSize: 50,
+  denoise: 0.95,
   isDrawing: false,
 
   // LoRA State
@@ -4710,9 +4710,9 @@ function initImageEditor() {
       if (customSettingsPanel) customSettingsPanel.style.display = 'none';
 
       // Update denoise default for inpainting
-      document.getElementById('input-editor-denoise').value = 0.50;
-      document.getElementById('editor-denoise-val').textContent = '0.50';
-      appState.denoise = 0.50;
+      document.getElementById('input-editor-denoise').value = 0.95;
+      document.getElementById('editor-denoise-val').textContent = '0.95';
+      appState.denoise = 0.95;
 
       setBrushSettingsCollapsed(true);
       
@@ -5372,6 +5372,91 @@ function renderLorasList() {
     listContainer.appendChild(block);
   });
 }
+
+window.mergedVideosMap = window.mergedVideosMap || {};
+
+async function mergeTwoVideos(url1, url2) {
+  const v1 = document.createElement('video');
+  const v2 = document.createElement('video');
+  v1.crossOrigin = 'anonymous';
+  v2.crossOrigin = 'anonymous';
+  v1.muted = true;
+  v2.muted = true;
+  v1.playsInline = true;
+  v2.playsInline = true;
+
+  v1.src = url1;
+  v2.src = url2;
+
+  await Promise.all([
+    new Promise(res => { v1.onloadedmetadata = res; v1.onerror = res; }),
+    new Promise(res => { v2.onloadedmetadata = res; v2.onerror = res; })
+  ]);
+
+  const width = v1.videoWidth || v2.videoWidth || 640;
+  const height = v1.videoHeight || v2.videoHeight || 640;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  const stream = canvas.captureStream(30);
+  let mimeType = 'video/webm;codecs=vp9';
+  if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+  if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/mp4';
+
+  const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 5000000 });
+  const chunks = [];
+  recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+  const finished = new Promise(resolve => {
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: mimeType });
+      resolve(URL.createObjectURL(blob));
+    };
+  });
+
+  recorder.start();
+
+  // Play & draw Part 1
+  if (v1.duration > 0) {
+    v1.currentTime = 0;
+    await v1.play().catch(() => {});
+    await new Promise(resolve => {
+      function drawFrame1() {
+        if (v1.ended || v1.paused) {
+          resolve();
+        } else {
+          ctx.drawImage(v1, 0, 0, width, height);
+          requestAnimationFrame(drawFrame1);
+        }
+      }
+      drawFrame1();
+    });
+  }
+
+  // Play & draw Part 2
+  if (v2.duration > 0) {
+    v2.currentTime = 0;
+    await v2.play().catch(() => {});
+    await new Promise(resolve => {
+      function drawFrame2() {
+        if (v2.ended || v2.paused) {
+          resolve();
+        } else {
+          ctx.drawImage(v2, 0, 0, width, height);
+          requestAnimationFrame(drawFrame2);
+        }
+      }
+      drawFrame2();
+    });
+  }
+
+  recorder.stop();
+  return await finished;
+}
+
 // ─── Image Lineage Tree Overlay ───────────────────────────────────────
 window.openLineageTree = function(startImgId) {
   const overlay = document.getElementById('lineage-tree-overlay');
@@ -5389,16 +5474,22 @@ window.openLineageTree = function(startImgId) {
     rootId = imagesMap[rootId].parentId;
   }
 
-  // Build tree
+  // Build tree — exclude 'Merged Video' items from main horizontal traverse
   const childrenMap = {};
+  const mergedVideoMap = {}; // key: childVideoId -> savedMergedItem
+
   images.forEach(img => {
     if (img.parentId) {
-      if (!childrenMap[img.parentId]) childrenMap[img.parentId] = [];
-      childrenMap[img.parentId].push(img);
+      if (img.modificationPrompt === 'Merged Video') {
+        mergedVideoMap[img.parentId] = img;
+      } else {
+        if (!childrenMap[img.parentId]) childrenMap[img.parentId] = [];
+        childrenMap[img.parentId].push(img);
+      }
     }
   });
 
-  // Calculate layout
+  // Calculate layout for regular nodes
   const nodeWidth = 150;
   const nodeHeight = 250;
   const gapX = 450;
@@ -5430,6 +5521,59 @@ window.openLineageTree = function(startImgId) {
 
   traverse(rootId, 0);
 
+  // Position subtrees for merged video nodes and their children
+  Object.keys(mergedVideoMap).forEach(childVideoId => {
+    const savedMergedNode = mergedVideoMap[childVideoId];
+    const childNode = imagesMap[childVideoId];
+    if (!savedMergedNode || !childNode || !childNode.parentId) return;
+    const parentNode = imagesMap[childNode.parentId];
+    if (!parentNode) return;
+
+    const pPos = positions[parentNode.id];
+    const cPos = positions[childNode.id];
+    if (!pPos || !cPos) return;
+
+    const startX = pPos.x + (pPos.isMergeCard ? 150 : nodeWidth);
+    const startY = pPos.y + (pPos.isMergeCard ? 50 : nodeHeight / 2 - 40);
+    const endX = cPos.x;
+    const endY = cPos.y + nodeHeight / 2 - 40;
+
+    const midX = (startX + endX) / 2;
+    const midY = (startY + endY) / 2;
+    const mergeX = midX - 75;
+    const mergeY = midY - 220;
+
+    positions[savedMergedNode.id] = { x: mergeX, y: mergeY, isMergeCard: true };
+
+    // Position children of savedMergedNode
+    let mCurrentY = mergeY;
+    function positionSubtree(mId, startX) {
+      const mChildren = childrenMap[mId] || [];
+      if (mChildren.length === 0) return;
+      mChildren.forEach((mChild) => {
+        // Shift mX far enough right so it doesn't overlap cPos (which is the main branch node)
+        const baseMX = Math.max(startX + gapX, cPos.x + gapX); 
+        positions[mChild.id] = { x: baseMX, y: mCurrentY };
+        mCurrentY += 600; // 600px vertical gap prevents Merge cards and prompt boxes from overlapping
+        positionSubtree(mChild.id, baseMX);
+      });
+    }
+    positionSubtree(savedMergedNode.id, mergeX);
+  });
+
+  // Shift all coordinates so that minY is at least 150
+  // This prevents negative Y coordinates which cause SVG paths to be clipped by browsers
+  let globalMinY = Infinity;
+  Object.keys(positions).forEach(id => {
+    globalMinY = Math.min(globalMinY, positions[id].y);
+  });
+  if (globalMinY < 150) {
+    const shiftY = 150 - globalMinY;
+    Object.keys(positions).forEach(id => {
+      positions[id].y += shiftY;
+    });
+  }
+
   nodesWrapper.innerHTML = '';
   svgCanvas.innerHTML = '';
 
@@ -5438,6 +5582,10 @@ window.openLineageTree = function(startImgId) {
   Object.keys(positions).forEach(id => {
     const pos = positions[id];
     const node = imagesMap[id];
+    if (!node) return;
+    
+    // Skip rendering merged video nodes as regular right-side nodes (they render in upward branch)
+    if (node.modificationPrompt === 'Merged Video') return;
     
     minX = Math.min(minX, pos.x);
     minY = Math.min(minY, pos.y);
@@ -5448,7 +5596,7 @@ window.openLineageTree = function(startImgId) {
     nodeEl.className = 'tree-node ' + (id === startImgId ? 'active' : '');
     nodeEl.style.left = pos.x + 'px';
     nodeEl.style.top = pos.y + 'px';
-    const isVideoNode = node.url && (node.url.endsWith('.mp4') || node.url.includes('/video/') || (node.filename && node.filename.endsWith('.mp4')) || (node.url.includes('filename=') && node.url.includes('.mp4')));
+    const isVideoNode = node.isVideo === true || (node.url && (node.url.endsWith('.mp4') || node.url.includes('/video/') || (node.filename && node.filename.endsWith('.mp4')) || (node.url.includes('filename=') && node.url.includes('.mp4'))));
     const mediaHtml = isVideoNode
       ? `<video src="${node.url}" autoplay loop muted playsinline style="width:100%; height:100%; object-fit:cover; pointer-events:none;"></video>`
       : `<img src="${node.url}" alt="Lineage Image" />`;
@@ -5473,11 +5621,11 @@ window.openLineageTree = function(startImgId) {
     childrenMap[parentId].forEach(child => {
       if (!positions[child.id]) return;
       const cPos = positions[child.id];
-      
-      const startX = pPos.x + nodeWidth;
-      const startY = pPos.y + nodeHeight / 2 - 40; // center roughly on image
-      const endX = cPos.x;
-      const endY = cPos.y + nodeHeight / 2 - 40;
+
+      let startX = pPos.x + (pPos.isMergeCard ? 150 : nodeWidth);
+      let startY = pPos.y + (pPos.isMergeCard ? 50 : nodeHeight / 2 - 40);
+      let endX = cPos.x;
+      let endY = cPos.y + nodeHeight / 2 - 40;
       
       const path = document.createElementNS(svgNS, 'path');
       path.setAttribute('class', 'tree-link');
@@ -5487,24 +5635,146 @@ window.openLineageTree = function(startImgId) {
       svgCanvas.appendChild(path);
 
       if (child.modificationPrompt) {
-        // SVG foreign object for text box
-        const fo = document.createElementNS(svgNS, 'foreignObject');
         const midX = (startX + endX) / 2;
         const midY = (startY + endY) / 2;
-        fo.setAttribute('x', midX - 100);
-        fo.setAttribute('y', midY - 25);
-        fo.setAttribute('width', 200);
-        fo.setAttribute('height', 500); // large height so expanding contents are not cropped by SVG
-        fo.setAttribute('class', 'tree-prompt-foreign');
         
-        fo.innerHTML = `<div class="tree-prompt-box"><span>${child.modificationPrompt}</span></div>`;
-        svgCanvas.appendChild(fo);
+        // Use an HTML div in nodesWrapper instead of SVG foreignObject
+        // to prevent clipping bugs in WebKit/Blink for negative Y coordinates
+        const promptContainer = document.createElement('div');
+        promptContainer.className = 'tree-prompt-foreign';
+        promptContainer.style.position = 'absolute';
+        promptContainer.style.left = (midX - 100) + 'px';
+        promptContainer.style.top = (midY - 25) + 'px';
+        promptContainer.style.width = '200px';
+        // height not restricted to avoid clipping dropdowns
+        
+        promptContainer.innerHTML = `<div class="tree-prompt-box"><span>${child.modificationPrompt}</span></div>`;
+        nodesWrapper.appendChild(promptContainer);
 
-        const box = fo.querySelector('.tree-prompt-box');
+        const box = promptContainer.querySelector('.tree-prompt-box');
         box.onclick = (e) => {
           e.stopPropagation();
           box.classList.toggle('expanded');
         };
+
+        // Check if this connection is strictly between TWO videos → show Merge branch
+        const parentNode = imagesMap[parentId];
+        const isParentVideo = parentNode && (parentNode.isVideo === true || (parentNode.url && (parentNode.url.includes('.mp4') || parentNode.url.includes('/video/'))));
+        const isChildVideo = child.isVideo === true || (child.url && (child.url.includes('.mp4') || child.url.includes('/video/')));
+
+        if (isParentVideo && isChildVideo) {
+          minY = Math.min(minY, midY - 250);
+
+          // Draw SVG dashed curve going UP from mid-prompt to merge node
+          const mergePath = document.createElementNS(svgNS, 'path');
+          mergePath.setAttribute('class', 'tree-link tree-merge-link');
+          mergePath.setAttribute('d', `M ${midX} ${midY - 25} C ${midX} ${midY - 60}, ${midX} ${midY - 80}, ${midX} ${midY - 110}`);
+          svgCanvas.appendChild(mergePath);
+
+          // Container for merge node (button or merged video preview)
+          const mergeNodeEl = document.createElement('div');
+          mergeNodeEl.className = 'tree-merge-node';
+          mergeNodeEl.style.left = (midX - 75) + 'px';
+          mergeNodeEl.style.top = (midY - 220) + 'px';
+
+          const mergeKey = `${parentId}_${child.id}`;
+          window.mergedVideosMap = window.mergedVideosMap || {};
+
+          // Check if merged video is stored in albumStore for child.id or window.mergedVideosMap
+          const savedMergedNode = mergedVideoMap[child.id];
+          const existingMergedUrl = savedMergedNode ? savedMergedNode.url : window.mergedVideosMap[mergeKey];
+          const existingMergedId = savedMergedNode ? savedMergedNode.id : null;
+
+          if (existingMergedUrl) {
+            // Already merged — show video preview in place of button
+            mergeNodeEl.innerHTML = `
+              <div class="tree-merge-card merged" title="Click to view merged video in Lightbox">
+                <video src="${existingMergedUrl}" autoplay loop muted playsinline style="width:100%; height:100%; object-fit:cover; border-radius:10px; pointer-events:none;"></video>
+                <div class="tree-merge-label">Merged Video</div>
+              </div>
+            `;
+            mergeNodeEl.onclick = (e) => {
+              e.stopPropagation();
+              if (window.openLightbox) {
+                window.openLightbox(
+                  existingMergedUrl,
+                  savedMergedNode ? savedMergedNode.prompt : 'Merged Video',
+                  (savedMergedNode && savedMergedNode.tags) || child.tags || [],
+                  existingMergedId || child.id,
+                  true
+                );
+              }
+            };
+          } else {
+            // Not yet merged — show Merge button
+            mergeNodeEl.innerHTML = `
+              <div class="tree-merge-card">
+                <button class="btn-tree-merge" title="Merge parent video and continuation video into one clip">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
+                    <path d="M8 6h10a2 2 0 0 1 2 2v10M4 18V8a2 2 0 0 1 2-2h2"/>
+                    <polygon points="13 11 18 15 13 19 13 11"/>
+                  </svg>
+                  <span>Merge</span>
+                </button>
+              </div>
+            `;
+
+            const btnMerge = mergeNodeEl.querySelector('.btn-tree-merge');
+            if (btnMerge) {
+              btnMerge.onclick = async (e) => {
+                e.stopPropagation();
+                btnMerge.disabled = true;
+                btnMerge.innerHTML = `
+                  <div class="loader-circle-spinner" style="width:14px; height:14px; border-width:2px; border-top-color:#fff;"></div>
+                  <span>Merging...</span>
+                `;
+                try {
+                  const mergedUrl = await mergeTwoVideos(parentNode ? parentNode.url : '', child.url);
+
+                  const mergePrompt = `Merged: ${parentNode ? (parentNode.prompt || '').slice(0, 30) : ''} + ${(child.prompt || '').slice(0, 30)}`;
+                  const savedMerged = await albumStore.save(
+                    mergedUrl,
+                    mergePrompt,
+                    child.tags || [],
+                    child.id,        // parentId = child video
+                    'Merged Video',  // special marker — excluded from normal tree children
+                    [], [], null, null,
+                    true             // forceIsVideo
+                  );
+
+                  const savedMergedUrl = savedMerged ? savedMerged.url : mergedUrl;
+                  const savedMergedId = savedMerged ? savedMerged.id : child.id;
+                  window.mergedVideosMap[mergeKey] = savedMergedUrl;
+
+                  mergeNodeEl.innerHTML = `
+                    <div class="tree-merge-card merged" title="Click to view merged video in Lightbox">
+                      <video src="${savedMergedUrl}" autoplay loop muted playsinline style="width:100%; height:100%; object-fit:cover; border-radius:10px; pointer-events:none;"></video>
+                      <div class="tree-merge-label">Merged Video</div>
+                    </div>
+                  `;
+                  mergeNodeEl.onclick = (ev) => {
+                    ev.stopPropagation();
+                    if (window.openLightbox) window.openLightbox(savedMergedUrl, mergePrompt, child.tags || [], savedMergedId, true);
+                  };
+                  showToast('Videos merged and saved to album!', 'success');
+                } catch (err) {
+                  console.error('Failed to merge videos:', err);
+                  showToast('Failed to merge videos', 'error');
+                  btnMerge.disabled = false;
+                  btnMerge.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
+                      <path d="M8 6h10a2 2 0 0 1 2 2v10M4 18V8a2 2 0 0 1 2-2h2"/>
+                      <polygon points="13 11 18 15 13 19 13 11"/>
+                    </svg>
+                    <span>Retry Merge</span>
+                  `;
+                }
+              };
+            }
+          }
+
+          nodesWrapper.appendChild(mergeNodeEl);
+        }
       }
     });
   });

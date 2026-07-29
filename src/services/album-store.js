@@ -282,13 +282,13 @@ export const albumStore = {
     });
   },
 
-  async save(imageUrl, prompt, tags = [], parentId = null, modificationPrompt = null, loras = [], subPrompts = [], mainPromptText = null, artStyleText = null) {
+  async save(imageUrl, prompt, tags = [], parentId = null, modificationPrompt = null, loras = [], subPrompts = [], mainPromptText = null, artStyleText = null, forceIsVideo = false) {
     const id = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const timestamp = new Date().toISOString();
     let blob = null;
     let finalUrl = imageUrl;
     let filename = null;
-    const isVideo = imageUrl && (imageUrl.includes('.mp4') || imageUrl.includes('/video/') || imageUrl.includes('format=mp4') || imageUrl.includes('.webm'));
+    const isVideo = forceIsVideo || (imageUrl && (imageUrl.includes('.mp4') || imageUrl.includes('/video/') || imageUrl.includes('format=mp4') || imageUrl.includes('.webm')));
 
     // Fetch the image URL to store the actual binary Blob locally in IndexedDB
     try {
