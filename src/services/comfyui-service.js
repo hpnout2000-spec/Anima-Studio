@@ -109,6 +109,23 @@ function buildAnimaWorkflow(prompt, negPrompt, settings, loras = []) {
     });
   }
 
+  if (cfg === 1.0 && negPrompt && negPrompt.trim() !== "") {
+    workflow["150"] = {
+      "class_type": "AnimaNormalizedAttentionGuidance",
+      "inputs": {
+        "model": currentModel,
+        "scale": 2.0,
+        "tau": 2.5,
+        "alpha": 0.5,
+        "start_percent": 0.0,
+        "end_percent": 0.5,
+        "only_anima": true,
+        "optimize_outside_range": true
+      }
+    };
+    currentModel = ["150", 0];
+  }
+
   workflow["4"].inputs.clip = currentClip;
   workflow["5"].inputs.clip = currentClip;
   workflow["7"].inputs.model = currentModel;
@@ -261,6 +278,23 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
         "device": "auto"
       }
     };
+  }
+
+  if (cfg === 1.0 && negPrompt && negPrompt.trim() !== "") {
+    workflow["150"] = {
+      "class_type": "AnimaNormalizedAttentionGuidance",
+      "inputs": {
+        "model": modelNode,
+        "scale": 2.0,
+        "tau": 2.5,
+        "alpha": 0.5,
+        "start_percent": 0.0,
+        "end_percent": 0.5,
+        "only_anima": true,
+        "optimize_outside_range": true
+      }
+    };
+    modelNode = ["150", 0];
   }
 
   // Latent encoding setup
@@ -433,6 +467,25 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
   workflow["4"].inputs.clip = currentClip;
   workflow["5"].inputs.clip = currentClip;
 
+  let samplerModelNode = ["6", 0];
+
+  if (cfg === 1.0 && negPrompt && negPrompt.trim() !== "") {
+    workflow["150"] = {
+      "class_type": "AnimaNormalizedAttentionGuidance",
+      "inputs": {
+        "model": samplerModelNode,
+        "scale": 2.0,
+        "tau": 2.5,
+        "alpha": 0.5,
+        "start_percent": 0.0,
+        "end_percent": 0.5,
+        "only_anima": true,
+        "optimize_outside_range": true
+      }
+    };
+    samplerModelNode = ["150", 0];
+  }
+
   Object.assign(workflow, {
     "15": {
       "class_type": "ImageResize+",
@@ -479,7 +532,7 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
       "inputs": {
         "seed": seed, "steps": steps, "cfg": cfg, "sampler_name": sampler,
         "scheduler": scheduler, "denoise": (isCustom && customSettings.denoiseCap) ? Math.min(denoise, 0.92) : denoise,
-        "model": ["6", 0],
+        "model": samplerModelNode,
         "positive": ["50", 0], "negative": ["50", 1], "latent_image": ["50", 2]
       }
     },

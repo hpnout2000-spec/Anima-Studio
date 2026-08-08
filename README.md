@@ -89,6 +89,9 @@ Ensure standard ComfyUI video nodes or Wan 2.2 support nodes are loaded (e.g., `
 - **ComfyUI-Anima-LLLite**: Clone into `ComfyUI/custom_nodes/` from [GitHub - kohya-ss/ComfyUI-Anima-LLLite](https://github.com/kohya-ss/ComfyUI-Anima-LLLite).
 - **LLLite Weights**: `anima-lllite-inpainting-v2.safetensors` in `ComfyUI/models/controlnet/`.
 
+### For CFG 1.0 Negative Prompt Support (NAG):
+- **ComfyUI-Anima-NAG**: Clone into `ComfyUI/custom_nodes/` from [GitHub - hybskgks28275/ComfyUI-Anima-NAG](https://github.com/hybskgks28275/ComfyUI-Anima-NAG). This enables negative prompts to work effectively at CFG 1.0 for the Anima base model.
+
 ### For Edit Pro (Split-Screen):
 - **ComfyUI_essentials**
 - **ComfyUI-KJNodes**

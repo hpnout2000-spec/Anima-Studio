@@ -1272,6 +1272,9 @@ body, html {
   cursor: pointer;
   transition: background-color 0.2s;
   font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .btn-surprise-left:hover {
@@ -5538,3 +5541,197 @@ body, html {
 
 
 
+ 
+ 
+/* ==========================================================================
+   FEED MODE STYLES
+   ========================================================================== */
+
+body.feed-mode-active .workspace-batch-row .batch-boxes-container {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 20px !important;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  align-items: stretch !important;
+  padding: 0 20px !important;
+  box-sizing: border-box !important;
+  justify-content: space-between !important;
+}
+
+body.feed-mode-active #main-workspace {
+  margin: 0 !important;
+  width: 460px !important;
+  min-width: 460px !important;
+  max-width: 460px !important;
+  height: calc(100vh - 120px) !important;
+  overflow-y: auto !important;
+  flex: none !important;
+}
+
+body.feed-mode-active .feed-middle-pane {
+  display: flex !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+
+body.feed-mode-active .feed-right-pane {
+  display: flex !important;
+  flex: none !important;
+  width: 350px !important;
+}
+
+.feed-middle-pane {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-light);
+  border: 1px solid var(--border-light);
+  border-radius: 24px;
+  padding: 20px;
+  height: calc(100vh - 120px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.feed-viewer-container {
+  position: relative;
+  width: 100%;
+  max-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  border-radius: 16px;
+  overflow: hidden;
+  /* aspect-ratio set by JS */
+}
+
+#feed-viewer-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.feed-viewer-overlay {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.btn-feed-action {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-feed-action:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.btn-feed-action.saved {
+  color: #ff3b30;
+  background: rgba(255, 59, 48, 0.2);
+  border-color: rgba(255, 59, 48, 0.5);
+}
+
+.btn-feed-action.saved svg {
+  fill: #ff3b30;
+}
+
+.btn-feed-action svg {
+  width: 24px;
+  height: 24px;
+}
+
+.feed-right-pane {
+  display: none;
+  flex-direction: column;
+  background: var(--surface-light);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  height: calc(100vh - 120px);
+  overflow: hidden;
+}
+
+.feed-history-header {
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.feed-history-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.feed-history-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 15px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 10px;
+}
+
+.feed-history-item {
+  width: calc(50% - 5px);
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.feed-history-item:hover {
+  transform: scale(1.02);
+}
+
+.feed-history-item.active {
+  border-color: var(--primary-color);
+}
+
+.feed-history-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.feed-history-item.loading {
+  background: rgba(255, 255, 255, 0.05);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+  100% { opacity: 0.5; }
+}
+
+#btn-feed-mode.active {
+  background: var(--primary-gradient);
+  border-color: transparent;
+  color: white;
+}

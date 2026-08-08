@@ -290,6 +290,12 @@
           </div>
           <div class="settings-row">
             <div class="settings-group half">
+              <label class="settings-label">Feed Batch Size</label>
+              <input type="number" id="setting-feed-batch-size" class="settings-input" value="2" min="1" max="10">
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-group half">
               <label class="settings-label">LLLite Model (Inpaint)</label>
               <input type="text" id="setting-comfyui-lllite-name" class="settings-input" placeholder="anima-lllite-inpainting-v2.safetensors">
             </div>
@@ -641,6 +647,43 @@
               <div class="surprise-dropdown-header">Randomize Categories</div>
               <div id="surprise-categories-list" class="surprise-dropdown-list">
                 <!-- Populated dynamically -->
+              </div>
+            </div>
+          </div>
+          <div class="split-button-container">
+            <button id="btn-feed-mode" class="btn-surprise-left" style="background: var(--surface-light); border-color: var(--border-light);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spark-icon">
+                <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+              </svg>
+              <span>Feed</span>
+            </button>
+            <div class="btn-surprise-divider"></div>
+            <button id="btn-feed-settings" class="btn-surprise-right" title="Configure Feed Randomizer" style="background: var(--surface-light); border-color: var(--border-light);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </button>
+            <div id="feed-settings-dropdown" class="surprise-dropdown hidden">
+              <div class="surprise-dropdown-header">Randomize...</div>
+              <div class="surprise-dropdown-list">
+                <div class="surprise-category-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;">
+                  <span>Aspect ratio</span>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-feed-random-aspect">
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="surprise-category-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;">
+                  <span>Art Style</span>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-feed-random-style">
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
@@ -1130,6 +1173,30 @@
           </button>
         </div>
         </main>
+        
+        <!-- FEED MIDDLE PANE -->
+        <div id="feed-middle-pane" class="feed-middle-pane hidden">
+          <div class="feed-viewer-container">
+             <img id="feed-viewer-image" src="" alt="Feed View" />
+             <div class="feed-viewer-overlay">
+               <button id="btn-feed-save" class="btn-feed-action" title="Save">
+                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                 </svg>
+               </button>
+             </div>
+          </div>
+        </div>
+
+        <!-- FEED RIGHT PANE -->
+        <div id="feed-right-pane" class="feed-right-pane hidden">
+          <div class="feed-history-header">
+            <h3>Feed History</h3>
+          </div>
+          <div id="feed-history-list" class="feed-history-list">
+             <!-- thumbnail grid appended here -->
+          </div>
+        </div>
       </div>
       <!-- Footer Close button for batch generations -->
       <div id="batch-actions-footer" class="batch-actions-footer hidden">

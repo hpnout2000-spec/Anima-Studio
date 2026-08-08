@@ -27,6 +27,15 @@ let appState = {
   tagWeights: {}, // Map of tag -> weight (e.g. 1.5, 0.5)
   knownCharTriggers: new Set(), // Track character triggers with commas
   
+  // Feed State
+  isFeedMode: false,
+  feedImages: [],
+  currentFeedIndex: -1,
+  feedBatchSize: 2,
+  feedGenerationAbortController: null,
+  feedRandomizeAspectRatio: false,
+  feedRandomizeArtStyle: false,
+  
   // Editor State
   editorActive: false,
   editorSourceUrl: null,
@@ -7877,7 +7886,7 @@ function initVideoFormController() {
         return;
       }
 
-      const negPrompt = (videoState.cfg > 1.0)
+      const negPrompt = (videoState.cfg >= 1.0)
         ? (document.getElementById('video-prompt-negative')?.value.trim() || '')
         : '';
 
@@ -8072,3 +8081,357 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
+
+// ==========================================================================
+// FEED MODE LOGIC
+// ==========================================================================
+
+function toggleFeedMode() {
+  const btnFeedMode = document.getElementById('btn-feed-mode');
+  appState.isFeedMode = !appState.isFeedMode;
+  
+  if (appState.isFeedMode) {
+    document.body.classList.add('feed-mode-active');
+    if (btnFeedMode) btnFeedMode.classList.add('active');
+    
+    // Clear feed list on start
+    appState.feedImages = [];
+    appState.currentFeedIndex = -1;
+    document.getElementById('feed-history-list').innerHTML = '';
+    document.getElementById('feed-viewer-image').src = '';
+    document.getElementById('feed-viewer-image').style.opacity = '0';
+    
+    // Init settings
+    const batchSizeInput = document.getElementById('setting-feed-batch-size');
+    appState.feedBatchSize = batchSizeInput ? parseInt(batchSizeInput.value, 10) || 2 : 2;
+    
+    const w = parseInt(document.getElementById('setting-comfyui-width')?.value || 1024, 10);
+    const h = parseInt(document.getElementById('setting-comfyui-height')?.value || 1024, 10);
+    const viewerContainer = document.querySelector('.feed-viewer-container');
+    if (viewerContainer) {
+      viewerContainer.style.aspectRatio = `${w} / ${h}`;
+      viewerContainer.style.width = `${w}px`;
+      viewerContainer.style.height = `${h}px`;
+      viewerContainer.style.maxWidth = `100%`;
+      viewerContainer.style.maxHeight = `100%`;
+    }
+    
+    startFeedGenerationLoop();
+  } else {
+    document.body.classList.remove('feed-mode-active');
+    if (btnFeedMode) btnFeedMode.classList.remove('active');
+    
+    if (appState.feedGenerationAbortController) {
+      appState.feedGenerationAbortController.abort();
+      appState.feedGenerationAbortController = null;
+    }
+    
+    const btnGenerate = document.getElementById('btn-generate');
+    if (btnGenerate) btnGenerate.disabled = false;
+  }
+}
+
+// Feed Settings Dropdown
+const btnFeedSettings = document.getElementById('btn-feed-settings');
+const feedSettingsDropdown = document.getElementById('feed-settings-dropdown');
+const toggleFeedRandomAspect = document.getElementById('toggle-feed-random-aspect');
+const toggleFeedRandomStyle = document.getElementById('toggle-feed-random-style');
+
+if (btnFeedSettings && feedSettingsDropdown) {
+  btnFeedSettings.addEventListener('click', (e) => {
+    e.stopPropagation();
+    feedSettingsDropdown.classList.toggle('hidden');
+    const surpriseDrop = document.getElementById('surprise-settings-dropdown');
+    if (surpriseDrop) surpriseDrop.classList.add('hidden');
+  });
+  
+  document.addEventListener('click', (e) => {
+    if (!feedSettingsDropdown.contains(e.target) && !btnFeedSettings.contains(e.target)) {
+      feedSettingsDropdown.classList.add('hidden');
+    }
+  });
+}
+
+if (toggleFeedRandomAspect) {
+  toggleFeedRandomAspect.addEventListener('change', () => {
+    appState.feedRandomizeAspectRatio = toggleFeedRandomAspect.checked;
+  });
+}
+
+if (toggleFeedRandomStyle) {
+  toggleFeedRandomStyle.addEventListener('change', () => {
+    appState.feedRandomizeArtStyle = toggleFeedRandomStyle.checked;
+    if (appState.feedRandomizeArtStyle && !styleExplorerState.loaded) {
+      initStyleExplorer();
+    }
+  });
+}
+
+async function startFeedGenerationLoop() {
+  if (appState.feedGenerationAbortController) {
+    appState.feedGenerationAbortController.abort();
+  }
+  appState.feedGenerationAbortController = new AbortController();
+  const signal = appState.feedGenerationAbortController.signal;
+  
+  const btnGenerate = document.getElementById('btn-generate');
+  if (btnGenerate) btnGenerate.disabled = true;
+  
+  while (appState.isFeedMode && !signal.aborted) {
+    const unviewedCount = appState.feedImages.length - (appState.currentFeedIndex === -1 ? 0 : appState.currentFeedIndex + 1);
+    
+    if (unviewedCount >= 8) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      continue;
+    }
+    
+    try {
+      await generateFeedBatch(signal);
+    } catch (e) {
+      if (e.name === 'AbortError') break;
+      console.error('Feed generation error:', e);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+  }
+}
+
+async function generateFeedBatch(signal) {
+  const negPromptInput = document.getElementById('negative-prompt-input');
+  const negPrompt = negPromptInput ? negPromptInput.value : '';
+  
+  let finalPrompt = getFinalPrompt();
+  
+  // Randomizer: Art Style
+  if (appState.feedRandomizeArtStyle && styleExplorerState.loaded && styleExplorerState.items.length > 0) {
+    const list = styleExplorerState.items;
+    const isDouble = Math.random() < 0.2;
+    const r1 = Math.floor(Math.random() * list.length);
+    let artistTags = `@${list[r1].artist}`;
+    
+    if (isDouble) {
+      let r2 = Math.floor(Math.random() * list.length);
+      while(r2 === r1) r2 = Math.floor(Math.random() * list.length);
+      artistTags += `, @${list[r2].artist}`;
+    }
+    
+    finalPrompt = finalPrompt ? `${finalPrompt}, ${artistTags}` : artistTags;
+  }
+  
+  // Base settings
+  let width = parseInt(document.getElementById('setting-comfyui-width')?.value || 1024, 10);
+  let height = parseInt(document.getElementById('setting-comfyui-height')?.value || 1024, 10);
+  
+  // Randomizer: Aspect Ratio
+  if (appState.feedRandomizeAspectRatio) {
+    const ASPECT_RATIOS = [
+      { name: '1:1 (Square)', ratio: 1.0 },
+      { name: '3:2 (Photo)', ratio: 1.5 },
+      { name: '4:3 (Standard)', ratio: 1.3333 },
+      { name: '16:9 (Widescreen)', ratio: 1.7778 },
+      { name: '21:9 (Cinematic)', ratio: 2.3333 },
+      { name: '2:3 (Portrait)', ratio: 0.6667 },
+      { name: '3:4 (Portrait)', ratio: 0.75 },
+      { name: '9:16 (Portrait)', ratio: 0.5625 },
+      { name: '9:21 (Portrait)', ratio: 0.4286 }
+    ];
+    const rIdx = Math.floor(Math.random() * ASPECT_RATIOS.length);
+    const chosenRatio = ASPECT_RATIOS[rIdx].ratio;
+    
+    const settings = settingsStore.get();
+    const megapixelsVal = parseFloat(settings.comfyui_megapixels) || 1.0;
+    const multipleVal = parseInt(settings.comfyui_multiple) || 16;
+    
+    const targetPixels = megapixelsVal * 1024 * 1024;
+    height = Math.round(Math.sqrt(targetPixels / chosenRatio));
+    width = Math.round(height * chosenRatio);
+    width = Math.round(width / multipleVal) * multipleVal;
+    height = Math.round(height / multipleVal) * multipleVal;
+    
+    // Dynamically update viewer aspect ratio if it's the first in a fresh batch
+    // (We apply it for the batch, meaning all images in this batch share this ratio)
+    const viewerContainer = document.querySelector('.feed-viewer-container');
+    if (viewerContainer && appState.currentFeedIndex === -1) {
+      viewerContainer.style.aspectRatio = `${width} / ${height}`;
+      viewerContainer.style.width = `${width}px`;
+      viewerContainer.style.height = `${height}px`;
+      viewerContainer.style.maxWidth = `100%`;
+      viewerContainer.style.maxHeight = `100%`;
+    }
+  }
+  
+  // Load original width/height back to settings temporarily just to trigger ComfyUI correctly?
+  // generateImageComfyUI uses width/height from settings if we don't pass them?
+  // Wait, generateImageComfyUI internally reads from settings. We need to override it.
+  const oldW = settingsStore.get().comfyui_width;
+  const oldH = settingsStore.get().comfyui_height;
+  settingsStore.save({ comfyui_width: width, comfyui_height: height });
+  
+  const historyList = document.getElementById('feed-history-list');
+  const loadingElements = [];
+  appState.feedBatchSize = settingsStore.get().comfyui_batch_size || 1;
+  
+  for (let i = 0; i < appState.feedBatchSize; i++) {
+    const el = document.createElement('div');
+    el.className = 'feed-history-item loading';
+    historyList.appendChild(el);
+    loadingElements.push(el);
+  }
+  
+  try {
+    const imgUrls = await generateImageComfyUI(
+      finalPrompt,
+      (status) => {}, // ignore status
+      signal,
+      (previewUrl) => {}, // ignore preview
+      null, // default txt2img
+      appState.loras.filter(l => l.enabled && l.name)
+    );
+    
+    const urlsArray = Array.isArray(imgUrls) ? imgUrls : [imgUrls];
+    
+    urlsArray.forEach((resultUrl, index) => {
+      const activeLoras = appState.loras.filter(l => l.enabled && l.name);
+      const imgObj = { 
+        url: resultUrl, 
+        saved: false, 
+        ar: `${width} / ${height}`,
+        width: width,
+        height: height,
+        prompt: finalPrompt,
+        tags: [...appState.activeTags],
+        loras: activeLoras
+      };
+      appState.feedImages.push(imgObj);
+      
+      let el = loadingElements[index];
+      if (!el) {
+        el = document.createElement('div');
+        historyList.appendChild(el);
+      }
+      
+      el.className = 'feed-history-item';
+      el.innerHTML = `<img src="${resultUrl}" />`;
+      
+      const feedIndex = appState.feedImages.length - 1;
+      el.addEventListener('click', () => {
+        setFeedViewerIndex(feedIndex);
+      });
+      
+      if (appState.currentFeedIndex === -1 && index === 0) {
+        setFeedViewerIndex(0);
+      }
+    });
+    
+    // Cleanup extra loading boxes if needed
+    for (let i = urlsArray.length; i < loadingElements.length; i++) {
+      loadingElements[i].remove();
+    }
+    
+  } catch (err) {
+    console.error('Feed generation failed', err);
+    loadingElements.forEach(el => el.remove());
+    throw err;
+  }
+  
+  // Restore settings
+  settingsStore.save({ comfyui_width: oldW, comfyui_height: oldH });
+}
+
+function setFeedViewerIndex(index) {
+  if (index < 0 || index >= appState.feedImages.length) return;
+  
+  appState.currentFeedIndex = index;
+  const imgObj = appState.feedImages[index];
+  
+  const viewerContainer = document.querySelector('.feed-viewer-container');
+  if (viewerContainer && imgObj.ar) {
+    viewerContainer.style.aspectRatio = imgObj.ar;
+    viewerContainer.style.width = imgObj.width ? `${imgObj.width}px` : '100%';
+    viewerContainer.style.height = imgObj.height ? `${imgObj.height}px` : '100%';
+    viewerContainer.style.maxWidth = '100%';
+    viewerContainer.style.maxHeight = '100%';
+  }
+  
+  const viewerImg = document.getElementById('feed-viewer-image');
+  if (viewerImg) viewerImg.style.opacity = '0';
+  
+  setTimeout(() => {
+    if (viewerImg) {
+      viewerImg.src = imgObj.url;
+      viewerImg.style.opacity = '1';
+    }
+  }, 150);
+  
+  const btnSave = document.getElementById('btn-feed-save');
+  if (btnSave) {
+    if (imgObj.saved) {
+      btnSave.classList.add('saved');
+    } else {
+      btnSave.classList.remove('saved');
+    }
+  }
+  
+  document.querySelectorAll('.feed-history-item').forEach((el, i) => {
+    if (i === index) el.classList.add('active');
+    else el.classList.remove('active');
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const btnFeedMode = document.getElementById('btn-feed-mode');
+  if (btnFeedMode) {
+    btnFeedMode.addEventListener('click', toggleFeedMode);
+  }
+
+  const middlePane = document.getElementById('feed-middle-pane');
+  if (middlePane) {
+    middlePane.addEventListener('wheel', (e) => {
+      if (!appState.isFeedMode) return;
+      if (e.deltaY > 0) {
+        setFeedViewerIndex(appState.currentFeedIndex + 1);
+      } else if (e.deltaY < 0) {
+        setFeedViewerIndex(appState.currentFeedIndex - 1);
+      }
+    });
+    
+    let startY = 0;
+    middlePane.addEventListener('touchstart', e => { startY = e.touches[0].clientY; });
+    middlePane.addEventListener('touchend', e => {
+      const endY = e.changedTouches[0].clientY;
+      if (startY - endY > 50) setFeedViewerIndex(appState.currentFeedIndex + 1);
+      if (endY - startY > 50) setFeedViewerIndex(appState.currentFeedIndex - 1);
+    });
+  }
+  
+  const viewerImg = document.getElementById('feed-viewer-image');
+  if (viewerImg) {
+    viewerImg.style.cursor = 'pointer';
+    viewerImg.addEventListener('click', () => {
+      if (appState.currentFeedIndex === -1) return;
+      const imgObj = appState.feedImages[appState.currentFeedIndex];
+      if (window.openLightbox && imgObj) {
+        window.openLightbox(imgObj.url, imgObj.prompt, imgObj.tags || [], imgObj.id || null, false);
+      }
+    });
+  }
+  
+  const btnSave = document.getElementById('btn-feed-save');
+  if (btnSave) {
+    btnSave.addEventListener('click', async () => {
+      if (appState.currentFeedIndex === -1) return;
+      const imgObj = appState.feedImages[appState.currentFeedIndex];
+      
+      if (!imgObj.saved) {
+        try {
+          await albumStore.save(imgObj.url, imgObj.prompt, imgObj.tags || [], null, null, imgObj.loras || []);
+          imgObj.saved = true;
+          btnSave.classList.add('saved');
+          showToast('Image saved to album!', 'success');
+        } catch (e) {
+          console.error('Failed to save to album:', e);
+          showToast('Failed to save to album', 'error');
+        }
+      }
+    });
+  }
+});
