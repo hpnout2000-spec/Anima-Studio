@@ -3081,6 +3081,12 @@ body, html {
   gap: 2px;
 }
 
+.editor-mode-toggle-group.editor-mode-grid-2x2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+
 .editor-toggle-btn {
   flex: 1;
   background: transparent;

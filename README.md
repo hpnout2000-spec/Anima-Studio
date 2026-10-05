@@ -85,9 +85,10 @@ You need a running instance of ComfyUI. Open the Settings panel in the client (v
 ### For Wan 2.2 Video Generation:
 Ensure standard ComfyUI video nodes or Wan 2.2 support nodes are loaded (e.g., `WanVideoSampler`, `KSampler`, `VHS_VideoCombine` / `SaveAnimatedWEBP`).
 
-### For Anima LLLite Inpainting:
+### For Anima LLLite Inpainting & Editing:
 - **ComfyUI-Anima-LLLite**: Clone into `ComfyUI/custom_nodes/` from [GitHub - kohya-ss/ComfyUI-Anima-LLLite](https://github.com/kohya-ss/ComfyUI-Anima-LLLite).
-- **LLLite Weights**: `anima-lllite-inpainting-v2.safetensors` in `ComfyUI/models/controlnet/`.
+- **Inpainting Weights**: `anima-lllite-inpainting-v2.safetensors` in `ComfyUI/models/controlnet/`.
+- **Editing Weights (Experimental Character Preservation)**: `anima-lllite-exp-change-2-000007.safetensors` in `ComfyUI/models/controlnet/`. Recommended strength: 0.15 - 0.30.
 
 ### For CFG 1.0 Negative Prompt Support (NAG):
 - **ComfyUI-Anima-NAG**: Clone into `ComfyUI/custom_nodes/` from [GitHub - hybskgks28275/ComfyUI-Anima-NAG](https://github.com/hybskgks28275/ComfyUI-Anima-NAG). This enables negative prompts to work effectively at CFG 1.0 for the Anima base model.
@@ -97,6 +98,11 @@ Ensure standard ComfyUI video nodes or Wan 2.2 support nodes are loaded (e.g., `
 - **ComfyUI-KJNodes**
 - **AILab-Nodes**
 - **ComfyUI-JPS-Nodes**
+
+### For Edit Beta Mode:
+- **LayerUtility** (ImageScaleByAspectRatio V2)
+- **[ComfyUI-Cosmos-Reference](https://github.com/Mirumo0u0/ComfyUI-Cosmos-Reference)**
+- **LoRA weights**: `AnimeEditV2.safetensors` in `ComfyUI/models/loras/` ([Download Civitai](https://civitai.com/models/2650553/anima-edit))
 
 ---
 

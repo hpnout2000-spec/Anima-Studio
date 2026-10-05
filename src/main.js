@@ -4706,11 +4706,11 @@ function initImageEditor() {
       brushControls.style.display = 'block';
       if (btnBrushDraw) btnBrushDraw.style.display = ''; // Restore default display
       
-      // ПОКАЗАТЬ ползунок denoise, СКРЫТЬ пресеты
+      // ПОКАЗАТЬ ползунок denoise, СКРЫТЬ вес LLLite
       const denoiseRow = document.querySelector('.editor-denoise-row');
-      const presetsRow = document.getElementById('img2img-denoise-presets');
+      const weightRow = document.getElementById('img2img-weight-container');
       if (denoiseRow) denoiseRow.style.display = '';
-      if (presetsRow) presetsRow.style.display = 'none';
+      if (weightRow) weightRow.style.display = 'none';
       
       // СКРЫТЬ переключатель Edit Pro и кастомные настройки
       const editProSwitcher = document.getElementById('edit-pro-mode-switcher');
@@ -4746,11 +4746,11 @@ function initImageEditor() {
       applyBrushModeVisibility();
       setBrushSettingsCollapsed(true);
       
-      // СКРЫТЬ ползунок denoise, ПОКАЗАТЬ пресеты
+      // СКРЫТЬ ползунок denoise, ПОКАЗАТЬ слайдер веса LLLite
       const denoiseRow = document.querySelector('.editor-denoise-row');
-      const presetsRow = document.getElementById('img2img-denoise-presets');
+      const weightRow = document.getElementById('img2img-weight-container');
       if (denoiseRow) denoiseRow.style.display = 'none';
-      if (presetsRow) presetsRow.style.display = 'flex';
+      if (weightRow) weightRow.style.display = 'flex';
       
       // СКРЫТЬ переключатель Edit Pro и кастомные настройки
       const editProSwitcher = document.getElementById('edit-pro-mode-switcher');
@@ -4758,17 +4758,14 @@ function initImageEditor() {
       const customSettingsPanel = document.getElementById('edit-pro-custom-settings');
       if (customSettingsPanel) customSettingsPanel.style.display = 'none';
 
-      // Установить Medium по умолчанию
-      appState.denoise = 0.50;
-      const mediumBtn = presetsRow?.querySelector('[data-denoise="0.50"]');
-      presetsRow?.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-      if (mediumBtn) mediumBtn.classList.add('active');
+      // В режиме Global Edit denoise = 1.0, а силу трансформирования задает LLLite Weight
+      appState.denoise = 1.0;
       
-      // Синхронизировать скрытый слайдер (на случай переключения в inpaint)
-      const slider = document.getElementById('input-editor-denoise');
-      const display = document.getElementById('editor-denoise-val');
-      if (slider) slider.value = 0.50;
-      if (display) display.textContent = '0.50';
+      const currentWeight = settingsStore.get().comfyui_lllite_strength ?? 0.20;
+      const weightSlider = document.getElementById('input-editor-lllite-weight');
+      const weightDisplay = document.getElementById('editor-lllite-weight-val');
+      if (weightSlider) weightSlider.value = currentWeight;
+      if (weightDisplay) weightDisplay.textContent = Number(currentWeight).toFixed(2);
     });
 
     btnEditPro.addEventListener('click', () => {
@@ -4790,11 +4787,11 @@ function initImageEditor() {
         customSettingsPanel.style.display = appState.editProMode === 'custom' ? 'block' : 'none';
       }
 
-      // СКРЫТЬ пресеты img2img и ползунок
+      // СКРЫТЬ слайдер веса LLLite и denoise
       const denoiseRow = document.querySelector('.editor-denoise-row');
-      const presetsRow = document.getElementById('img2img-denoise-presets');
+      const weightRow = document.getElementById('img2img-weight-container');
       if (denoiseRow) denoiseRow.style.display = 'none';
-      if (presetsRow) presetsRow.style.display = 'none';
+      if (weightRow) weightRow.style.display = 'none';
       
       // Edit Pro denoise = 1.0
       document.getElementById('input-editor-denoise').value = 1.0;
@@ -4803,24 +4800,28 @@ function initImageEditor() {
     });
   }
 
-  // Img2Img denoise presets handler
-  const presetButtons = document.querySelectorAll('.preset-btn[data-mode="img2img"]');
-  presetButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const denoise = parseFloat(btn.dataset.denoise);
-      appState.denoise = denoise;
-      
-      // Update UI
-      presetButtons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      
-      // Синхронизировать скрытый слайдер (на случай переключения в inpaint)
-      const slider = document.getElementById('input-editor-denoise');
-      const display = document.getElementById('editor-denoise-val');
-      if (slider) slider.value = denoise;
-      if (display) display.textContent = denoise.toFixed(2);
+  // LLLite Edit Weight slider handler & General Settings sync
+  const llliteWeightSlider = document.getElementById('input-editor-lllite-weight');
+  const llliteWeightVal = document.getElementById('editor-lllite-weight-val');
+  const llliteModalInput = document.getElementById('setting-comfyui-lllite-strength');
+
+  if (llliteWeightSlider) {
+    llliteWeightSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      if (llliteWeightVal) llliteWeightVal.textContent = val.toFixed(2);
+      if (llliteModalInput) llliteModalInput.value = val;
+      settingsStore.save({ comfyui_lllite_strength: val });
     });
-  });
+  }
+
+  if (llliteModalInput) {
+    llliteModalInput.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value) || 0.20;
+      if (llliteWeightVal) llliteWeightVal.textContent = val.toFixed(2);
+      if (llliteWeightSlider) llliteWeightSlider.value = val;
+      settingsStore.save({ comfyui_lllite_strength: val });
+    });
+  }
 
   // Edit Pro mode switcher
   const editProModeBtns = document.querySelectorAll('.edit-pro-mode-btn');
@@ -4876,6 +4877,42 @@ function initImageEditor() {
   if (customNoiseMask) {
     customNoiseMask.addEventListener('change', () => {
       appState.editProCustomSettings.noiseMask = customNoiseMask.checked;
+    });
+  }
+
+  // Prompt Preset collapse & selection handlers
+  const promptPresetHeader = document.getElementById('prompt-preset-header');
+  const promptPresetContent = document.getElementById('editor-prompt-preset-content');
+  const promptPresetArrow = document.getElementById('prompt-preset-collapse-arrow');
+  const btnPreset1 = document.getElementById('btn-prompt-preset-1');
+  const btnPreset2 = document.getElementById('btn-prompt-preset-2');
+  const promptPresetDesc = document.getElementById('prompt-preset-description');
+
+  if (promptPresetHeader && promptPresetContent && promptPresetArrow) {
+    promptPresetHeader.addEventListener('click', () => {
+      appState.promptPresetCollapsed = !appState.promptPresetCollapsed;
+      promptPresetContent.classList.toggle('collapsed', appState.promptPresetCollapsed);
+      promptPresetArrow.classList.toggle('collapsed', appState.promptPresetCollapsed);
+    });
+  }
+
+  if (btnPreset1 && btnPreset2) {
+    btnPreset1.addEventListener('click', () => {
+      appState.promptPreset = 'preset1';
+      btnPreset1.classList.add('active');
+      btnPreset2.classList.remove('active');
+      if (promptPresetDesc) {
+        promptPresetDesc.textContent = 'Preset 1: Comparison view (current template)';
+      }
+    });
+
+    btnPreset2.addEventListener('click', () => {
+      appState.promptPreset = 'preset2';
+      btnPreset2.classList.add('active');
+      btnPreset1.classList.remove('active');
+      if (promptPresetDesc) {
+        promptPresetDesc.textContent = 'Preset 2: Official AI template ("multiple views, the image on the right is different")';
+      }
     });
   }
 
@@ -5050,13 +5087,29 @@ async function startImageEditGeneration() {
 
     smoothUpdateLoaderText('Uploading images to ComfyUI...');
 
+    let sourceWidth = null;
+    let sourceHeight = null;
+    if (srcBlob) {
+      try {
+        const tempImg = new Image();
+        tempImg.src = URL.createObjectURL(srcBlob);
+        await new Promise(resolve => { tempImg.onload = resolve; tempImg.onerror = resolve; });
+        if (tempImg.naturalWidth && tempImg.naturalHeight) {
+          sourceWidth = tempImg.naturalWidth;
+          sourceHeight = tempImg.naturalHeight;
+        }
+      } catch (e) {}
+    }
+
     const editParams = {
       sourceImageBlob: srcBlob,
       maskImageBlob: appState.editorMode === 'inpaint' ? maskBlob : null,
       denoise: appState.denoise,
       mode: appState.editorMode,
       editProMode: appState.editProMode || 'global',
-      customSettings: appState.editProMode === 'custom' ? appState.editProCustomSettings : null
+      customSettings: appState.editProMode === 'custom' ? appState.editProCustomSettings : null,
+      sourceWidth,
+      sourceHeight
     };
 
     const activeLoras = appState.loras.filter(l => l.enabled && l.name);

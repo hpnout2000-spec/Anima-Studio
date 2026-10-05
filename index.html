@@ -305,8 +305,8 @@
             </div>
           </div>
           <div class="settings-group">
-            <label class="settings-label">LLLite Model (Img2Img)</label>
-            <input type="text" id="setting-comfyui-lllite-name-img2img" class="settings-input" placeholder="anima-lllite-any-test-like-v2.safetensors">
+            <label class="settings-label">LLLite Model (Img2Img / Edit)</label>
+            <input type="text" id="setting-comfyui-lllite-name-img2img" class="settings-input" placeholder="anima-lllite-exp-change-2-000007.safetensors">
           </div>
           <div class="settings-group">
             <label class="settings-label">Positive Prompt Prefix</label>
@@ -869,10 +869,11 @@
 
           <div class="editor-settings-group">
               <label class="editor-settings-label">Edit Mode</label>
-              <div class="editor-mode-toggle-group">
+              <div class="editor-mode-toggle-group editor-mode-grid-2x2">
                 <button id="btn-editor-mode-inpaint" class="editor-toggle-btn active">Local Edit (Inpaint)</button>
                 <button id="btn-editor-mode-img2img" class="editor-toggle-btn">Global Edit</button>
                 <button id="btn-editor-mode-edit-pro" class="editor-toggle-btn">Edit Pro</button>
+                <button id="btn-editor-mode-edit-beta" class="editor-toggle-btn">Beta</button>
               </div>
             </div>
 
@@ -931,22 +932,14 @@
               </div>
             </div>
 
-            <!-- Новый блок для img2img denoise presets -->
-            <div id="img2img-denoise-presets" class="editor-preset-buttons editor-settings-group" style="display: none;">
-              <span class="preset-label">Change Strength:</span>
-              <div class="preset-buttons-group">
-                <button class="preset-btn" data-denoise="0.30" data-mode="img2img">
-                  <span class="preset-name">Low</span>
-                  <span class="preset-desc">Light touch</span>
-                </button>
-                <button class="preset-btn active" data-denoise="0.50" data-mode="img2img">
-                  <span class="preset-name">Medium</span>
-                  <span class="preset-desc">Balanced</span>
-                </button>
-                <button class="preset-btn" data-denoise="0.75" data-mode="img2img">
-                  <span class="preset-name">High</span>
-                  <span class="preset-desc">Strong change</span>
-                </button>
+            <!-- Slider for LLLite Edit Weight in Global Edit mode -->
+            <div id="img2img-weight-container" class="editor-settings-group" style="display: none;">
+              <div class="editor-slider-container">
+                <div class="editor-slider-header">
+                  <span>Edit Weight (LLLite)</span>
+                  <span id="editor-lllite-weight-val">0.20</span>
+                </div>
+                <input type="range" id="input-editor-lllite-weight" min="0.05" max="1.0" step="0.05" value="0.20" class="settings-slider-input">
               </div>
             </div>
 
@@ -973,6 +966,23 @@
                 <button class="edit-pro-mode-btn" data-edit-mode="custom">
                   <span class="preset-name">Custom</span>
                 </button>
+              </div>
+
+              <!-- Prompt Preset Collapsible Group -->
+              <div id="editor-prompt-preset-group" style="margin-top: 10px;">
+                <div class="editor-brush-header" id="prompt-preset-header" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 4px 0;">
+                  <span class="preset-label" style="cursor: pointer; margin: 0;">Prompt Preset</span>
+                  <span id="prompt-preset-collapse-arrow" class="brush-collapse-arrow collapsed">▼</span>
+                </div>
+                <div id="editor-prompt-preset-content" class="editor-brush-settings-content collapsed">
+                  <div class="editor-mode-toggle-group" style="margin-top: 6px;">
+                    <button id="btn-prompt-preset-1" class="editor-toggle-btn active" data-preset="preset1">Preset 1</button>
+                    <button id="btn-prompt-preset-2" class="editor-toggle-btn" data-preset="preset2">Preset 2</button>
+                  </div>
+                  <div id="prompt-preset-description" style="font-size: 11px; color: var(--text-secondary); margin-top: 6px; line-height: 1.3;">
+                    Preset 1: Comparison view (current template)
+                  </div>
+                </div>
               </div>
 
               <!-- Edit Pro custom settings panel -->

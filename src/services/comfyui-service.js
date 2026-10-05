@@ -136,7 +136,7 @@ function buildAnimaWorkflow(prompt, negPrompt, settings, loras = []) {
 /**
  * Build the Anima Edit workflow (Img2Img / Inpaint with optional LLLite)
  */
-function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, maskFilename, denoise, mode, loras = []) {
+function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, maskFilename, denoise, mode, loras = [], editParams = null) {
   const seed = Math.floor(Math.random() * 2 ** 32);
   const steps = settings.comfyui_steps ?? 30;
   const cfg = settings.comfyui_cfg ?? 4.5;
@@ -226,7 +226,7 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
   // Apply LLLite patch if a model is configured for this mode
   if (llliteName) {
     workflow["15"] = {
-      "class_type": "AnimaLLLiteApply",
+      "class_type": "AnimaLLLiteApply_sdscripts",
       "inputs": {
         "model": currentModel,
         "lllite_name": llliteName,
@@ -237,6 +237,9 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
         "preserve_wrapper": mode === 'inpaint' ? false : true
       }
     };
+    if (llliteName && llliteName.includes('exp')) {
+      workflow["15"].inputs["vae"] = ["3", 0];
+    }
 
     if (mode === 'inpaint' && maskFilename) {
       // Inpainting model REQUIRES a mask
@@ -326,13 +329,29 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
     };
   } else {
     // Global img2img
-    workflow["11"] = {
-      "class_type": "VAEEncode",
-      "inputs": {
-        "pixels": ["10", 0],
-        "vae": ["3", 0]
-      }
-    };
+    if (llliteName && llliteName.includes('exp')) {
+      // Experimental v3 semantic LLLite uses EmptyLatentImage + denoise=1.0
+      // Reference image is passed exclusively into AnimaLLLiteApply_sdscripts
+      const width = (editParams && editParams.sourceWidth) ? editParams.sourceWidth : (settings.comfyui_width ?? 832);
+      const height = (editParams && editParams.sourceHeight) ? editParams.sourceHeight : (settings.comfyui_height ?? 1216);
+      workflow["11"] = {
+        "class_type": "EmptyLatentImage",
+        "inputs": {
+          "width": width,
+          "height": height,
+          "batch_size": settings.comfyui_batch_size ?? 1
+        }
+      };
+      denoise = 1.0;
+    } else {
+      workflow["11"] = {
+        "class_type": "VAEEncode",
+        "inputs": {
+          "pixels": ["10", 0],
+          "vae": ["3", 0]
+        }
+      };
+    }
     
     workflow["7"] = {
       "class_type": "KSampler",
@@ -373,7 +392,7 @@ function buildAnimaEditWorkflow(prompt, negPrompt, settings, sourceFilename, mas
 /**
  * Build the Anima Edit Pro workflow (Split-Screen Outpainting)
  */
-function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, denoise, loras = [], editMode = 'global', customSettings = null) {
+function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, denoise, loras = [], editMode = 'global', customSettings = null, promptPreset = 'preset1') {
   const seed = Math.floor(Math.random() * 2 ** 32);
   const steps = settings.comfyui_steps ?? 30;
   const cfg = settings.comfyui_cfg ?? 4.5;
@@ -388,14 +407,20 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
     ?? 0.85;
 
   const isCustom = editMode === 'custom' && customSettings;
-  const resizeMethod = isCustom ? customSettings.resizeMethod : 'keep-proportion-no-rounding';
+  const resizeMethod = isCustom ? customSettings.resizeMethod : 'keep-proportion-64';
   const improvedPrompt = isCustom ? customSettings.improvedPrompt : false;
   const negPromptFix = isCustom ? customSettings.negPromptFix : false;
 
   const stylePrompt = "masterpiece, best quality, very aesthetic, highly detailed";
   
   let instructions;
-  if (isCustom) {
+  if (promptPreset === 'preset2') {
+    // Official preset recommended by AI (from screenshot)
+    instructions = `split screen, multiple views, the image on the right is different - ${prompt}`;
+    if (isCustom && improvedPrompt) {
+      instructions += `, same background as left panel, same lighting, same color palette, same art style`;
+    }
+  } else if (isCustom) {
     if (improvedPrompt) {
       instructions = `split screen, side-by-side comparison, two panels of the same scene, left panel: original reference image, right panel: ${prompt}, same background as left panel, same lighting, same color palette, same art style, anime illustration, seamless transition between panels`;
     } else {
@@ -413,7 +438,7 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
 
   let finalNegPrompt = negPrompt || "lowres, bad anatomy, worst quality, blurry, watermark";
   if (negPromptFix) {
-    finalNegPrompt += ", black background, dark background, solid black, cropped edges, border artifacts, seam, dividing line, disconnected panels, mismatched lighting, mismatched background";
+    finalNegPrompt += ", black background, dark background, solid black, overexposed, washed out";
   }
 
   let currentModel = ["1", 0];
@@ -492,39 +517,37 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
       "inputs": {
         "width": 1024, "height": 1024, "interpolation": "lanczos",
         "method": resizeMethod === 'stretch' ? "stretch to aspect ratio" : "keep proportion",
-        "condition": "always", "multiple_of": resizeMethod === 'keep-proportion-64' ? 64 : 0,
+        "condition": "always", "multiple_of": resizeMethod === 'keep-proportion-no-rounding' ? 0 : 64,
         "image": ["10", 0]
-      }
-    },
-    "51": {
-      "class_type": "ImagePadKJ",
-      "inputs": {
-        "left": 0, "right": isCustom ? customSettings.paddingWidth : 48, "top": 0, "bottom": 0,
-        "extra_padding": 0, "pad_mode": "color", "color": "1,1,1",
-        "image": ["15", 0]
       }
     },
     "12": {
       "class_type": "AILab_ICLoRAConcat",
       "inputs": {
         "layout": "left-right", "custom_size": 0,
-        "object_image": ["51", 0], "base_image": ["15", 0]
+        "object_image": ["15", 0], "base_image": ["15", 0]
       }
     },
     "6": {
-      "class_type": "AnimaLLLiteApply",
+      "class_type": "AnimaLLLiteApply_sdscripts",
       "inputs": {
         "lllite_name": llliteName, "strength": llliteStrength,
-        "start_percent": 0, "end_percent": 1, "preserve_wrapper": false,
+        "start_percent": 0, "end_percent": 1, "preserve_wrapper": true,
         "model": currentModel, "image": ["12", 0], "mask": ["12", 2]
       }
     },
-    "50": {
-      "class_type": "InpaintModelConditioning",
+    "11": {
+      "class_type": "VAEEncode",
       "inputs": {
-        "noise_mask": isCustom ? customSettings.noiseMask : true,
-        "positive": ["4", 0], "negative": ["5", 0],
-        "vae": ["3", 0], "pixels": ["12", 0], "mask": ["12", 2]
+        "pixels": ["12", 0],
+        "vae": ["3", 0]
+      }
+    },
+    "11_mask": {
+      "class_type": "SetLatentNoiseMask",
+      "inputs": {
+        "samples": ["11", 0],
+        "mask": ["12", 2]
       }
     },
     "13": {
@@ -533,14 +556,14 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
         "seed": seed, "steps": steps, "cfg": cfg, "sampler_name": sampler,
         "scheduler": scheduler, "denoise": (isCustom && customSettings.denoiseCap) ? Math.min(denoise, 0.92) : denoise,
         "model": samplerModelNode,
-        "positive": ["50", 0], "negative": ["50", 1], "latent_image": ["50", 2]
+        "positive": ["4", 0], "negative": ["5", 0], "latent_image": ["11_mask", 0]
       }
     },
     "14": {
-      "class_type": "VAEDecodeTiled",
+      "class_type": "VAEDecode",
       "inputs": {
-        "tile_size": 512, "overlap": 64, "temporal_size": 64, "temporal_overlap": 8,
-        "samples": ["13", 0], "vae": ["3", 0]
+        "samples": ["13", 0],
+        "vae": ["3", 0]
       }
     },
     "40": {
@@ -558,6 +581,134 @@ function buildAnimaEditProWorkflow(prompt, negPrompt, settings, sourceFilename, 
       }
     }
   });
+
+  if (llliteName && llliteName.includes('exp')) {
+    workflow["6"].inputs["vae"] = ["3", 0];
+  }
+
+  return workflow;
+}
+
+/**
+ * Build the Anima Edit Beta Workflow
+ */
+function buildAnimaEditBetaWorkflow(prompt, negPrompt, settings, sourceFilename, loras = []) {
+  const seed = Math.floor(Math.random() * 2 ** 32);
+  const steps = settings.comfyui_steps ?? 30;
+  const cfg = settings.comfyui_cfg ?? 4.5;
+  const sampler = settings.comfyui_sampler ?? 'euler_ancestral';
+  const scheduler = settings.comfyui_scheduler ?? 'simple';
+  const unetName = settings.comfyui_unet_name ?? 'anima_baseV10.safetensors';
+  const vaeName = settings.comfyui_vae_name ?? 'qwen_image_vae.safetensors';
+
+  const workflow = {
+    "1": {
+      "class_type": "UNETLoader",
+      "inputs": {
+        "unet_name": unetName,
+        "weight_dtype": "default"
+      }
+    },
+    "2": {
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "qwen_3_06b_base.safetensors",
+        "type": "cosmos"
+      }
+    },
+    "3": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": vaeName
+      }
+    },
+    "4": {
+      "class_type": "LoraLoaderModelOnly",
+      "inputs": {
+        "lora_name": "AnimeEditV2.safetensors",
+        "strength_model": 1.0,
+        "model": [ "1", 0 ]
+      }
+    },
+    "5": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": sourceFilename
+      }
+    },
+    "6": {
+      "class_type": "LayerUtility: ImageScaleByAspectRatio V2",
+      "inputs": {
+        "aspect_ratio": "original",
+        "proportional_width": 1,
+        "proportional_height": 1,
+        "fit": "fill",
+        "method": "lanczos",
+        "round_to_multiple": "8",
+        "scale_to_side": "total_pixel(kilo pixel)",
+        "scale_to_length": 768,
+        "background_color": "#000000",
+        "image": [ "5", 0 ]
+      }
+    },
+    "7": {
+      "class_type": "VAEEncode",
+      "inputs": {
+        "pixels": [ "6", 0 ],
+        "vae": [ "3", 0 ]
+      }
+    },
+    "8": {
+      "class_type": "ApplyCosmosReferenceLatent",
+      "inputs": {
+        "model": [ "4", 0 ],
+        "latent": [ "7", 0 ]
+      }
+    },
+    "9": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": prompt,
+        "clip": [ "2", 0 ]
+      }
+    },
+    "10": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": negPrompt,
+        "clip": [ "2", 0 ]
+      }
+    },
+    "11": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": seed,
+        "steps": steps,
+        "cfg": cfg,
+        "sampler_name": sampler,
+        "scheduler": scheduler,
+        "denoise": 1.0,
+        "model": [ "8", 0 ],
+        "positive": [ "9", 0 ],
+        "negative": [ "10", 0 ],
+        "latent_image": [ "7", 0 ]
+      }
+    },
+    "12": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [ "11", 0 ],
+        "vae": [ "3", 0 ]
+      }
+    },
+    "14": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "ComfyGen_",
+        "images": [ "12", 0 ]
+      }
+    }
+  };
 
   return workflow;
 }
@@ -1107,7 +1258,16 @@ export async function generateImageComfyUI(prompt, onProgress = () => {}, signal
           editParams.denoise,
           loras,
           editParams.editProMode || 'global',
-          editParams.customSettings
+          editParams.customSettings,
+          editParams.promptPreset || 'preset1'
+        );
+      } else if (editParams.mode === 'edit-beta') {
+        workflow = buildAnimaEditBetaWorkflow(
+          prompt,
+          negPrompt,
+          settings,
+          sourceUpload.name,
+          loras
         );
       } else {
         workflow = buildAnimaEditWorkflow(
@@ -1118,7 +1278,8 @@ export async function generateImageComfyUI(prompt, onProgress = () => {}, signal
           maskUploadName,
           editParams.denoise,
           editParams.mode,
-          loras
+          loras,
+          editParams
         );
       }
     } else {
@@ -1289,15 +1450,17 @@ export async function generateImageComfyUI(prompt, onProgress = () => {}, signal
 
       // Check outputs
       if (entry.outputs) {
-        // SaveImage output node is "9"
-        const saveNode = entry.outputs['9'];
-        if (saveNode && saveNode.images && saveNode.images.length > 0) {
-          const urls = saveNode.images.map(img => 
-            `${baseUrl}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=${encodeURIComponent(img.type || 'output')}`
-          );
-          
-          onProgress('Image ready!');
-          return urls;
+        // Find the first output node that produced images (e.g., node '9', '14', etc.)
+        for (const nodeId of Object.keys(entry.outputs)) {
+          const outNode = entry.outputs[nodeId];
+          if (outNode && outNode.images && outNode.images.length > 0) {
+            const urls = outNode.images.map(img => 
+              `${baseUrl}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=${encodeURIComponent(img.type || 'output')}`
+            );
+            
+            onProgress('Image ready!');
+            return urls;
+          }
         }
       }
     }

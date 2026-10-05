@@ -14,7 +14,7 @@ const DEFAULTS = {
   comfyui_clip_name: 'qwen_3_06b_base.safetensors',
   comfyui_vae_name: 'qwen_image_vae.safetensors',
   comfyui_lllite_name: 'anima-lllite-inpainting-v2.safetensors',
-  comfyui_lllite_name_img2img: '',
+  comfyui_lllite_name_img2img: 'anima-lllite-exp-change-2-000007.safetensors',
   comfyui_lllite_strength: 1.0,
   comfyui_lllite_strength_edit_pro: 0.85,
   comfyui_free_memory_interval: 3,
